@@ -49,9 +49,9 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
     const camera = new THREE.PerspectiveCamera(42, W / H, 0.01, 200);
 
     /* ── Lights ── */
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    scene.add(new THREE.AmbientLight(0xffffff, 1.1));
 
-    const key = new THREE.DirectionalLight(0xffffff, 1.4);
+    const key = new THREE.DirectionalLight(0xffffff, 1.8);
     key.position.set(2, 5, 4);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
@@ -75,17 +75,20 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
       (gltf) => {
         const model = gltf.scene;
 
-        // Apply teal Bahamian material to all meshes
+        // Fix Z-up → Y-up (Meshy exports Z-up, Three.js is Y-up)
+        // Fix Z-up → Y-up (Meshy exports with Z as up)
+        model.rotation.x = -Math.PI / 2;
+
+        // Bright teal Bahamian materials
         const tealMat = new THREE.MeshStandardMaterial({
-          color:     new THREE.Color(0x00b8a2),
-          roughness: 0.28,
-          metalness: 0.14,
-          envMapIntensity: 1,
+          color: new THREE.Color(0x00d4bc),
+          roughness: 0.3,
+          metalness: 0.06,
         });
         const darkMat = new THREE.MeshStandardMaterial({
-          color:     new THREE.Color(0x007a6a),
-          roughness: 0.38,
-          metalness: 0.1,
+          color: new THREE.Color(0x009e8c),
+          roughness: 0.4,
+          metalness: 0.06,
         });
 
         let meshCount = 0;
@@ -94,13 +97,12 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
             const mesh = child as THREE.Mesh;
             mesh.castShadow = true;
             mesh.receiveShadow = true;
-            // Alternate slightly between two teal shades for depth
             mesh.material = meshCount % 2 === 0 ? tealMat : darkMat;
             meshCount++;
           }
         });
 
-        // Auto-fit: compute bounding box, center + scale to fill ~80% of frame
+        // Auto-fit AFTER rotation — bounding box in world space
         const box = new THREE.Box3().setFromObject(model);
         const size   = new THREE.Vector3();
         const center = new THREE.Vector3();

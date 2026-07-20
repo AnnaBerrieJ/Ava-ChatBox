@@ -1,17 +1,16 @@
 "use client";
 
-// app/chat/page.tsx
-
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import AvatarViewer from "../../components/AvatarViewer";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message    = { role: "user" | "assistant"; content: string };
 type Expression = "idle" | "happy" | "thinking";
+type AppState   = "setup" | "chat";
 
-// ── Replace this URL with your Ready Player Me avatar URL ──────────────────
-// Create yours free at: https://readyplayer.me/avatar
-// Then copy the .glb URL (e.g. https://models.readyplayer.me/YOUR_ID.glb)
-const AVATAR_URL = "https://models.readyplayer.me/6460d7b1ff67ebee73b01d2a.glb";
+// Fallback avatar (used until user creates their own)
+const DEFAULT_AVATAR = "https://models.readyplayer.me/6460d7b1ff67ebee73b01d2a.glb";
+// RPM demo iframe URL
+const RPM_IFRAME_URL = "https://demo.readyplayer.me/avatar?frameApi&clearColor=87CEEB";
 
 const SUGGESTED = [
   "What is Junkanoo? 🎉",
@@ -20,14 +19,70 @@ const SUGGESTED = [
   "What are the Out Islands? 🏝️",
 ];
 
-// Detect expression from Ava's response text
 function detectExpression(text: string): Expression {
-  const lower = text.toLowerCase();
-  if (/wonderful|love|amazing|beautiful|joy|celebrat|excit|great|happy|delicious/.test(lower)) return "happy";
-  if (/interesting|consider|think|actually|well,|hmm|complex|depends/.test(lower)) return "thinking";
+  const l = text.toLowerCase();
+  if (/wonderful|love|amazing|beautiful|joy|celebrat|excit|great|happy|delicious/.test(l)) return "happy";
+  if (/interesting|consider|think|actually|well,|hmm|complex|depends/.test(l))              return "thinking";
   return "idle";
 }
 
+// ── Avatar Creator Modal (RPM iframe) ─────────────────────────────────────────
+function AvatarCreator({ onDone }: { onDone: (url: string) => void }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (typeof event.data !== "string") return;
+      try {
+        const data = JSON.parse(event.data);
+        // RPM sends the avatar GLB URL when user finishes
+        if (data?.source === "readyplayerme" && data?.eventName === "v1.avatar.exported") {
+          const url: string = data.data?.url;
+          if (url) onDone(url);
+        }
+      } catch { /* ignore non-JSON messages */ }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [onDone]);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 100,
+      background: "rgba(0,0,0,0.85)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{ width: "min(96vw, 600px)", background: "#111", borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,0.6)" }}>
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg,#009B77,#005F99)", padding: "14px 20px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>Create Your 3D Avatar</div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+              Customize, then click <strong>Done</strong> inside the creator
+            </div>
+          </div>
+          <button
+            onClick={() => onDone(DEFAULT_AVATAR)}
+            style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: 20, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}
+          >
+            Skip for now
+          </button>
+        </div>
+
+        {/* RPM iframe */}
+        <iframe
+          ref={iframeRef}
+          src={RPM_IFRAME_URL}
+          style={{ width: "100%", height: 520, border: "none", display: "block" }}
+          allow="camera *; microphone *"
+          title="Ready Player Me Avatar Creator"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Background ────────────────────────────────────────────────────────────────
 function TropicalBackground() {
   return (
     <>
@@ -43,7 +98,10 @@ function TropicalBackground() {
   );
 }
 
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ChatPage() {
+  const [appState, setAppState]     = useState<AppState>("setup");
+  const [avatarUrl, setAvatarUrl]   = useState(DEFAULT_AVATAR);
   const [messages, setMessages]     = useState<Message[]>([]);
   const [input, setInput]           = useState("");
   const [isLoading, setIsLoading]   = useState(false);
@@ -52,6 +110,11 @@ export default function ChatPage() {
   const inputRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
+
+  const handleAvatarDone = useCallback((url: string) => {
+    setAvatarUrl(url);
+    setAppState("chat");
+  }, []);
 
   async function sendMessage(text: string) {
     if (!text.trim() || isLoading) return;
@@ -63,35 +126,32 @@ export default function ChatPage() {
     setExpression("thinking");
     setMessages((prev) => [...prev, { role:"assistant", content:"" }]);
 
-    let fullResponse = "";
+    let full = "";
     try {
-      const response = await fetch("/api/chat", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+      const res = await fetch("/api/chat", {
+        method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ messages:updated }),
       });
-      if (!response.ok) throw new Error();
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      if (!res.ok) throw new Error();
+      const reader = res.body?.getReader();
+      const dec    = new TextDecoder();
       if (!reader) throw new Error();
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream:true });
-        fullResponse += chunk;
+        full += dec.decode(value, { stream:true });
         setMessages((prev) => {
-          const copy = [...prev];
-          copy[copy.length-1] = { role:"assistant", content:fullResponse };
-          return copy;
+          const c = [...prev];
+          c[c.length-1] = { role:"assistant", content:full };
+          return c;
         });
-        // Update expression mid-stream
-        setExpression(detectExpression(fullResponse));
+        setExpression(detectExpression(full));
       }
     } catch {
       setMessages((prev) => {
-        const copy = [...prev];
-        copy[copy.length-1] = { role:"assistant", content:"Sorry, something went wrong. Please try again." };
-        return copy;
+        const c = [...prev];
+        c[c.length-1] = { role:"assistant", content:"Sorry, something went wrong. Please try again." };
+        return c;
       });
     } finally {
       setIsLoading(false);
@@ -104,20 +164,30 @@ export default function ChatPage() {
     <div style={{ height:"100vh", background:"linear-gradient(180deg,#87CEEB 0%,#29ABE2 25%,#0086BF 55%,#005F99 80%,#003D66 100%)", display:"flex", flexDirection:"column", alignItems:"center", fontFamily:"'Segoe UI',system-ui,sans-serif", position:"relative", overflow:"hidden" }}>
       <TropicalBackground />
 
+      {/* Avatar Creator Modal */}
+      {appState === "setup" && <AvatarCreator onDone={handleAvatarDone} />}
+
       {/* Header */}
-      <div style={{ textAlign:"center", padding:"20px 20px 0", color:"white", position:"relative", zIndex:1 }}>
-        <h1 style={{ margin:0, fontSize:32, fontWeight:900, letterSpacing:2, textShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>Ava</h1>
-        <p style={{ margin:"3px 0 0", fontSize:13, opacity:0.88 }}>Your Bahamian Culture Guide 🌺</p>
+      <div style={{ textAlign:"center", padding:"16px 20px 0", color:"white", position:"relative", zIndex:1 }}>
+        <h1 style={{ margin:0, fontSize:30, fontWeight:900, letterSpacing:2, textShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>Ava</h1>
+        <p style={{ margin:"3px 0 0", fontSize:12, opacity:0.88 }}>Your Bahamian Culture Guide 🌺</p>
       </div>
 
       {/* 3D Avatar */}
-      <div style={{ width:"100%", maxWidth:420, height:340, position:"relative", zIndex:1, flexShrink:0 }}>
-        <AvatarViewer avatarUrl={AVATAR_URL} isTalking={isLoading} expression={expression} />
+      <div style={{ width:"100%", maxWidth:420, height:320, position:"relative", zIndex:1, flexShrink:0 }}>
+        <AvatarViewer avatarUrl={avatarUrl} isTalking={isLoading} expression={expression} />
         {isLoading && (
           <div style={{ position:"absolute", bottom:12, left:"50%", transform:"translateX(-50%)", background:"rgba(255,255,255,0.15)", backdropFilter:"blur(8px)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:20, padding:"4px 14px", fontSize:12, color:"white", fontWeight:600, whiteSpace:"nowrap" }}>
             Ava is speaking ✨
           </div>
         )}
+        <button
+          onClick={() => setAppState("setup")}
+          title="Change avatar"
+          style={{ position:"absolute", top:8, right:8, background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:16, padding:"4px 10px", fontSize:11, cursor:"pointer", backdropFilter:"blur(6px)" }}
+        >
+          ✏️ Change avatar
+        </button>
         <div style={{ position:"absolute", bottom:4, right:8, fontSize:10, color:"rgba(255,255,255,0.35)" }}>drag to rotate</div>
       </div>
 

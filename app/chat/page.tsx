@@ -75,58 +75,44 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
       (gltf) => {
         const model = gltf.scene;
 
-        // Fix Z-up → Y-up (Meshy exports Z-up, Three.js is Y-up)
-        // Fix Z-up → Y-up (Meshy exports with Z as up)
+        // 1. Fix Z-up → Y-up (Meshy exports Z-up)
         model.rotation.x = -Math.PI / 2;
+        model.updateMatrixWorld(true);
 
-        // Bright teal Bahamian materials
-        const tealMat = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x00d4bc),
-          roughness: 0.3,
-          metalness: 0.06,
-        });
-        const darkMat = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x009e8c),
-          roughness: 0.4,
-          metalness: 0.06,
-        });
+        // 2. Compute bounding box after rotation
+        const box1 = new THREE.Box3().setFromObject(model);
+        const s1 = new THREE.Vector3();
+        box1.getSize(s1);
 
-        let meshCount = 0;
+        // 3. Normalize: scale so tallest dimension = 2 units
+        const sf = 2.0 / Math.max(s1.x, s1.y, s1.z, 0.001);
+        model.scale.setScalar(sf);
+        model.updateMatrixWorld(true);
+
+        // 4. Re-center after scaling: feet at y=0, centered on x/z
+        const box2 = new THREE.Box3().setFromObject(model);
+        const c2 = new THREE.Vector3();
+        box2.getCenter(c2);
+        model.position.set(-c2.x, -box2.min.y, -c2.z);
+
+        // 5. Teal Bahamian materials
+        const matA = new THREE.MeshStandardMaterial({ color: 0x00d4bc, roughness: 0.28, metalness: 0.06, side: THREE.FrontSide });
+        const matB = new THREE.MeshStandardMaterial({ color: 0x009e8c, roughness: 0.38, metalness: 0.06, side: THREE.FrontSide });
+        let mc = 0;
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            mesh.material = meshCount % 2 === 0 ? tealMat : darkMat;
-            meshCount++;
+            (child as THREE.Mesh).material = mc++ % 2 === 0 ? matA : matB;
           }
         });
 
-        // Auto-fit AFTER rotation — bounding box in world space
-        const box = new THREE.Box3().setFromObject(model);
-        const size   = new THREE.Vector3();
-        const center = new THREE.Vector3();
-        box.getSize(size);
-        box.getCenter(center);
-
-        // Move model so its feet touch y=0, horizontally centered
-        model.position.set(-center.x, -box.min.y, -center.z);
-
-        const maxDim = Math.max(size.x, size.y, size.z);
-
-        // Place camera so the full model fits vertically
-        const fovRad = THREE.MathUtils.degToRad(camera.fov);
-        const dist   = (size.y / 2) / Math.tan(fovRad / 2) * 1.18;
-        camera.position.set(0, size.y * 0.5, dist);
-        camera.lookAt(0, size.y * 0.5, 0);
-        camera.near = dist * 0.01;
-        camera.far  = dist * 10;
+        // 6. Fixed camera: character spans 0..2 on Y
+        camera.position.set(0, 1.0, 3.8);
+        camera.lookAt(0, 1.0, 0);
+        camera.near = 0.01;
+        camera.far  = 50;
         camera.updateProjectionMatrix();
 
-        // Store scale reference for animations
-        char.userData.height = size.y;
-        char.userData.dist   = dist;
-
+        char.userData.height = 2.0;
         char.add(model);
         setLoaded(true);
       },

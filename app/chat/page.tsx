@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import * as THREE from "three";
 
 type Message  = { role: "user" | "assistant"; content: string };
-type AvaState = "idle" | "talking" | "waving" | "thinking" | "happy" | "lookAround";
+type AvaState = "idle" | "talking" | "waving" | "thinking" | "happy";
 type Reaction = { emoji: string; id: number };
 
 const SUGGESTED = [
@@ -15,26 +16,308 @@ const SUGGESTED = [
 const CLICK_REACTIONS = ["👋🏾","😄","🌺","✨","💛","🌊"];
 const IDLE_COMMENTS   = ["Hey there! 😊","Ask me anything!","Did you know… 🌴","I love the Bahamas ❤️","The ocean is calling 🌊"];
 
-function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: () => void }) {
-  const imageRef     = useRef<HTMLDivElement>(null);
+/* ─── 3D Ava using Three.js ─── */
+function Ava3D({ avaState, onClickAva }: { avaState: AvaState; onClickAva: () => void }) {
+  const mountRef   = useRef<HTMLDivElement>(null);
+  const stateRef   = useRef<AvaState>("idle");
+  const frameRef   = useRef(0);
+  const animIdRef  = useRef<number>(0);
   const [reactions, setReactions] = useState<Reaction[]>([]);
-  const [bubble, setBubble]       = useState<string | null>(null);
+  const [bubble, setBubble]       = useState<string|null>(null);
   const reactionId = useRef(0);
 
-  // Cursor tracking — 3D body tilt
+  stateRef.current = avaState;
+
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!imageRef.current) return;
-      const dx = (e.clientX - window.innerWidth  * 0.75) / window.innerWidth;
-      const dy = (e.clientY - window.innerHeight * 0.5)  / window.innerHeight;
-      imageRef.current.style.transform =
-        `perspective(900px) rotateX(${dy * -5}deg) rotateY(${dx * 10}deg)`;
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    // ── Scene ──
+    const scene = new THREE.Scene();
+    const W = mount.clientWidth, H = mount.clientHeight;
+    const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
+    camera.position.set(0, 1.35, 4.8);
+    camera.lookAt(0, 1.2, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(W, H);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    mount.appendChild(renderer.domElement);
+
+    // ── Lights ──
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(3, 6, 5);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0x00ffd0, 0.7);
+    rim.position.set(-4, 3, -3);
+    scene.add(rim);
+    const fill = new THREE.DirectionalLight(0x88ccff, 0.35);
+    fill.position.set(-2, 0, 4);
+    scene.add(fill);
+
+    // ── Materials ──
+    const teal      = new THREE.MeshStandardMaterial({ color: 0x00b8a2, roughness: 0.22, metalness: 0.18 });
+    const darkTeal  = new THREE.MeshStandardMaterial({ color: 0x007a6a, roughness: 0.38, metalness: 0.12 });
+    const deepTeal  = new THREE.MeshStandardMaterial({ color: 0x00564c, roughness: 0.5,  metalness: 0.1  });
+    const skin      = new THREE.MeshStandardMaterial({ color: 0x00cdb5, roughness: 0.45, metalness: 0.05 });
+    const hair      = new THREE.MeshStandardMaterial({ color: 0x003530, roughness: 0.9  });
+    const beltMat   = new THREE.MeshStandardMaterial({ color: 0x001f1c, roughness: 0.3, metalness: 0.7  });
+    const buckle    = new THREE.MeshStandardMaterial({ color: 0xb8860b, roughness: 0.2, metalness: 0.9  });
+    const backpack  = new THREE.MeshStandardMaterial({ color: 0x009680, roughness: 0.55, metalness: 0.1 });
+
+    const character = new THREE.Group();
+    scene.add(character);
+
+    // ── HEAD ──
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.295, 36, 36), skin);
+    head.position.set(0, 2.52, 0);
+    character.add(head);
+
+    // Hair cap (covers top & back)
+    const hairCap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 36, 20, 0, Math.PI * 2, 0, Math.PI * 0.54), hair);
+    hairCap.position.copy(head.position);
+    character.add(hairCap);
+
+    // Hair bun
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 20), hair);
+    bun.position.set(0, 2.78, -0.22);
+    character.add(bun);
+
+    // Locs — cylinder strands hanging down
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI + Math.PI * 0.18;
+      const loc = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.012, 0.32, 8), hair);
+      loc.position.set(Math.sin(angle) * 0.26, 2.36, Math.cos(angle) * 0.26 * 0.6 - 0.05);
+      loc.rotation.z = Math.sin(angle) * 0.18;
+      character.add(loc);
+    }
+
+    // Ears
+    const earL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 14), skin);
+    earL.position.set( 0.3, 2.48, 0);
+    character.add(earL);
+    const earR = earL.clone();
+    earR.position.set(-0.3, 2.48, 0);
+    character.add(earR);
+
+    // Earrings
+    const earringL = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), buckle);
+    earringL.position.set( 0.33, 2.4, 0);
+    character.add(earringL);
+    const earringR = earringL.clone();
+    earringR.position.set(-0.33, 2.4, 0);
+    character.add(earringR);
+
+    // ── NECK ──
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.105, 0.17, 18), skin);
+    neck.position.set(0, 2.16, 0);
+    character.add(neck);
+
+    // ── TORSO ──
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.265, 0.225, 0.62, 22), teal);
+    torso.position.set(0, 1.72, 0);
+    character.add(torso);
+
+    // Collar
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.028, 8, 24), teal);
+    collar.position.set(0, 2.05, 0.04);
+    collar.rotation.x = Math.PI / 2.2;
+    character.add(collar);
+
+    // ── SHOULDERS ──
+    const sL = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 18), teal);
+    sL.position.set( 0.29, 1.98, 0);
+    character.add(sL);
+    const sR = sL.clone();
+    sR.position.set(-0.29, 1.98, 0);
+    character.add(sR);
+
+    // ── ARMS (crossed) ──
+    const lUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 14), teal);
+    lUpper.position.set( 0.3, 1.8, 0.05);
+    lUpper.rotation.z = -1.15;
+    lUpper.rotation.x =  0.22;
+    character.add(lUpper);
+
+    const rUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 14), teal);
+    rUpper.position.set(-0.3, 1.8, 0.05);
+    rUpper.rotation.z =  1.15;
+    rUpper.rotation.x =  0.22;
+    character.add(rUpper);
+
+    // Forearms crossing
+    const lFore = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.052, 0.42, 12), skin);
+    lFore.position.set( 0.04, 1.67, 0.22);
+    lFore.rotation.z = Math.PI / 2;
+    lFore.rotation.y =  0.12;
+    character.add(lFore);
+
+    const rFore = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.052, 0.42, 12), skin);
+    rFore.position.set(-0.04, 1.6, 0.22);
+    rFore.rotation.z = Math.PI / 2;
+    rFore.rotation.y = -0.12;
+    character.add(rFore);
+
+    // Hands
+    const lHand = new THREE.Mesh(new THREE.SphereGeometry(0.068, 12, 12), skin);
+    lHand.position.set(-0.24, 1.6, 0.22);
+    character.add(lHand);
+    const rHand = lHand.clone();
+    rHand.position.set( 0.24, 1.67, 0.22);
+    character.add(rHand);
+
+    // Wave arm (hidden by default, activated on wave)
+    const waveArm = new THREE.Group();
+    const waveUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 14), teal);
+    waveUpper.position.y = 0.18;
+    waveArm.add(waveUpper);
+    const waveFore = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.052, 0.36, 12), skin);
+    waveFore.position.y = -0.18;
+    waveArm.add(waveFore);
+    const waveHand = new THREE.Mesh(new THREE.SphereGeometry(0.068, 12, 12), skin);
+    waveHand.position.y = -0.38;
+    waveArm.add(waveHand);
+    waveArm.position.set(0.32, 1.98, 0);
+    waveArm.visible = false;
+    character.add(waveArm);
+
+    // ── HIPS ──
+    const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.228, 0.26, 22), darkTeal);
+    hips.position.set(0, 1.26, 0);
+    character.add(hips);
+
+    // Belt
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.255, 0.255, 0.06, 22), beltMat);
+    belt.position.set(0, 1.27, 0);
+    character.add(belt);
+    const buckleBox = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.04), buckle);
+    buckleBox.position.set(0, 1.27, 0.258);
+    character.add(buckleBox);
+
+    // ── LEGS ──
+    const lThigh = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.1, 0.46, 16), darkTeal);
+    lThigh.position.set( 0.12, 0.88, 0);
+    character.add(lThigh);
+    const rThigh = lThigh.clone();
+    rThigh.position.set(-0.12, 0.88, 0);
+    character.add(rThigh);
+
+    const lShin = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.076, 0.44, 14), darkTeal);
+    lShin.position.set( 0.12, 0.42, 0);
+    character.add(lShin);
+    const rShin = lShin.clone();
+    rShin.position.set(-0.12, 0.42, 0);
+    character.add(rShin);
+
+    // Cuffed jeans detail
+    const lCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.07, 14), deepTeal);
+    lCuff.position.set( 0.12, 0.22, 0);
+    character.add(lCuff);
+    const rCuff = lCuff.clone();
+    rCuff.position.set(-0.12, 0.22, 0);
+    character.add(rCuff);
+
+    // Boots
+    const lBoot = new THREE.Mesh(new THREE.BoxGeometry(0.175, 0.11, 0.3), deepTeal);
+    lBoot.position.set( 0.12, 0.105, 0.04);
+    character.add(lBoot);
+    const rBoot = lBoot.clone();
+    rBoot.position.set(-0.12, 0.105, 0.04);
+    character.add(rBoot);
+
+    // Boot soles
+    const lSole = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.03, 0.31), beltMat);
+    lSole.position.set( 0.12, 0.045, 0.04);
+    character.add(lSole);
+    const rSole = lSole.clone();
+    rSole.position.set(-0.12, 0.045, 0.04);
+    character.add(rSole);
+
+    // ── BACKPACK ──
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.44, 0.14), backpack);
+    pack.position.set(0, 1.7, -0.3);
+    character.add(pack);
+    const packTop = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.12), backpack);
+    packTop.position.set(0, 1.96, -0.3);
+    character.add(packTop);
+    // Straps
+    for (const x of [0.1, -0.1]) {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6, 0.04), darkTeal);
+      strap.position.set(x, 1.72, -0.16);
+      character.add(strap);
+    }
+
+    character.position.y = -1.35;
+
+    // ── Mouse tracking ──
+    let mouseX = 0, mouseY = 0;
+    const onMouse = (e: MouseEvent) => {
+      mouseX = (e.clientX / window.innerWidth  - 0.75) * 2;
+      mouseY = (e.clientY / window.innerHeight - 0.5)  * 2;
     };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
+    window.addEventListener("mousemove", onMouse);
+
+    // ── Animation loop ──
+    let f = 0;
+    let wavePhase = 0;
+
+    const loop = () => {
+      f++;
+      const t = f * 0.016;
+      const state = stateRef.current;
+
+      // Breathing
+      const breathe = Math.sin(t * 0.85) * 0.028;
+      character.position.y = -1.35 + breathe;
+
+      // Head look at cursor
+      head.rotation.y = mouseX * 0.22;
+      head.rotation.x = mouseY * -0.1;
+      hairCap.rotation.copy(head.rotation);
+
+      // Body subtle sway + cursor lean
+      character.rotation.y = Math.sin(t * 0.22) * 0.035 + mouseX * 0.06;
+
+      if (state === "talking") {
+        character.position.y = -1.35 + breathe + Math.sin(t * 8) * 0.018;
+        character.rotation.x = Math.sin(t * 8) * 0.012;
+      } else if (state === "thinking") {
+        head.rotation.z = Math.sin(t * 0.6) * 0.18 + 0.12;
+        character.position.y = -1.35 + breathe + Math.sin(t * 0.5) * 0.02;
+      } else if (state === "happy") {
+        character.position.y = -1.35 + Math.abs(Math.sin(t * 5)) * 0.12;
+        character.rotation.z = Math.sin(t * 5) * 0.04;
+      } else if (state === "waving") {
+        // Show wave arm, hide crossed arms
+        waveArm.visible = true;
+        waveArm.rotation.z = -Math.PI / 3 - Math.sin(wavePhase) * 0.55;
+        waveArm.rotation.x = -0.3;
+        wavePhase += 0.18;
+      } else {
+        waveArm.visible = false;
+        wavePhase = 0;
+        character.rotation.x = 0;
+        character.rotation.z = 0;
+      }
+
+      renderer.render(scene, camera);
+      animIdRef.current = requestAnimationFrame(loop);
+    };
+    animIdRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(animIdRef.current);
+      window.removeEventListener("mousemove", onMouse);
+      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
+      renderer.dispose();
+    };
   }, []);
 
-  // Idle speech bubbles
+  // ── Idle comments ──
   useEffect(() => {
     const iv = setInterval(() => {
       if (Math.random() < 0.4) {
@@ -53,104 +336,300 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
     onClickAva();
   };
 
-  const bodyClass = {
-    idle:       "ava-idle",
-    talking:    "ava-talk",
-    waving:     "ava-wave",
-    thinking:   "ava-think",
-    happy:      "ava-happy",
-    lookAround: "ava-idle",
-  }[avaState];
-
   return (
-    <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center", height:"100%" }}>
+    <div style={{ position:"relative", width:"100%", height:"100%" }}>
       <style>{`
-        @keyframes avaIdle  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes avaTalk  { 0%,100%{transform:translateY(0) rotate(0deg)} 25%{transform:translateY(-10px) rotate(-1deg)} 75%{transform:translateY(-5px) rotate(1deg)} }
-        @keyframes avaWave  { 0%,100%{transform:translateY(0) rotate(0deg)} 20%{transform:translateY(-22px) rotate(-4deg)} 50%{transform:translateY(-28px) rotate(4deg)} 80%{transform:translateY(-12px) rotate(-2deg)} }
-        @keyframes avaThink { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(5px) rotate(2.5deg)} }
-        @keyframes avaHappy { 0%,100%{transform:translateY(0) scale(1)} 25%{transform:translateY(-28px) scale(1.04)} 50%{transform:translateY(-32px) scale(1.06)} 75%{transform:translateY(-16px) scale(1.02)} }
-        @keyframes glowPulse { 0%,100%{filter:drop-shadow(0 0 14px rgba(0,220,200,0.6)) drop-shadow(0 0 40px rgba(0,155,119,0.3))} 50%{filter:drop-shadow(0 0 28px rgba(0,230,210,0.9)) drop-shadow(0 0 70px rgba(0,155,119,0.5))} }
-        @keyframes plumbob  { 0%,100%{transform:translateY(0) rotate(45deg)} 50%{transform:translateY(-8px) rotate(45deg)} }
         @keyframes reactionPop { 0%{transform:scale(.5);opacity:1} 70%{transform:translateY(-52px) scale(1.3);opacity:1} 100%{transform:translateY(-80px);opacity:0} }
-        @keyframes bubblePop { 0%{transform:scale(.8);opacity:0} 12%{transform:scale(1.04);opacity:1} 85%{transform:scale(1);opacity:1} 100%{transform:scale(.9);opacity:0} }
-        @keyframes ringOut  { 0%{transform:scale(1);opacity:.5} 100%{transform:scale(1.5);opacity:0} }
-
-        .ava-idle  { animation: avaIdle  3.6s ease-in-out infinite; }
-        .ava-talk  { animation: avaTalk  0.46s ease-in-out infinite; }
-        .ava-wave  { animation: avaWave  0.55s ease-in-out 4; }
-        .ava-think { animation: avaThink 2.1s ease-in-out infinite; }
-        .ava-happy { animation: avaHappy 0.5s ease-in-out 4; }
-        .ava-glow  { animation: glowPulse 0.55s ease-in-out infinite; }
+        @keyframes bubblePop { 0%{transform:scale(.8);opacity:0} 12%{transform:scale(1.04);opacity:1} 85%{opacity:1} 100%{transform:scale(.9);opacity:0} }
+        @keyframes plumbob { 0%,100%{transform:translateX(-50%) translateY(0) rotate(45deg)} 50%{transform:translateX(-50%) translateY(-8px) rotate(45deg)} }
+        @keyframes glowRing { 0%{transform:translateX(-50%) scale(1);opacity:.5} 100%{transform:translateX(-50%) scale(1.6);opacity:0} }
       `}</style>
 
       {/* Plumbob */}
-      <div style={{
-        width: 22, height: 22, flexShrink: 0, marginBottom: 8,
-        background: "linear-gradient(135deg,#00e6b4,#00c49a)",
-        clipPath: "polygon(50% 0%,100% 50%,50% 100%,0% 50%)",
-        animation: "plumbob 2.8s ease-in-out infinite",
-        boxShadow: "0 0 12px rgba(0,230,180,0.7)"
-      }} />
+      <div style={{ position:"absolute", top:12, left:"50%", width:20, height:20, background:"linear-gradient(135deg,#00e6b4,#00c49a)", clipPath:"polygon(50% 0%,100% 50%,50% 100%,0% 50%)", animation:"plumbob 2.8s ease-in-out infinite", boxShadow:"0 0 12px rgba(0,230,180,0.7)", zIndex:10 }} />
 
       {/* Speech bubble */}
       {bubble && (
-        <div style={{
-          position: "absolute", top: 50, right: "105%",
-          background: "white", borderRadius: 16, padding: "8px 14px",
-          fontSize: 13, fontWeight: 600, color: "#1a1a1a",
-          whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-          animation: "bubblePop 2.8s ease forwards", zIndex: 10,
-        }}>
+        <div style={{ position:"absolute", top:52, right:"105%", background:"white", borderRadius:14, padding:"7px 13px", fontSize:13, fontWeight:600, color:"#1a1a1a", whiteSpace:"nowrap", boxShadow:"0 4px 16px rgba(0,0,0,0.2)", animation:"bubblePop 2.8s ease forwards", zIndex:10 }}>
           {bubble}
           <div style={{ position:"absolute", right:-8, top:"50%", transform:"translateY(-50%)", borderWidth:"8px 0 8px 8px", borderStyle:"solid", borderColor:"transparent transparent transparent white" }} />
         </div>
       )}
 
-      {/* Talking rings */}
-      {avaState==="talking" && [0,0.4,0.8].map(d=>(
-        <div key={d} style={{
-          position:"absolute", bottom:0, left:"50%", transform:"translateX(-50%)",
-          width:200, height:200, borderRadius:"50%",
-          border:"2px solid rgba(0,210,190,0.45)",
-          pointerEvents:"none",
-          animation:`ringOut 1.3s ease-out ${d}s infinite`
-        }}/>
+      {/* Talking glow rings */}
+      {avaState==="talking" && [0,0.42,0.84].map(d=>(
+        <div key={d} style={{ position:"absolute", bottom:"18%", left:"50%", width:180, height:180, borderRadius:"50%", border:"2px solid rgba(0,210,190,0.5)", pointerEvents:"none", animation:`glowRing 1.3s ease-out ${d}s infinite` }} />
       ))}
 
-      {/* Reaction emojis */}
+      {/* Emoji reactions */}
+      {reactions.map(r=>(
+        <div key={r.id} style={{ position:"absolute", top:"35%", left:"50%", fontSize:32, pointerEvents:"none", animation:"reactionPop 1.1s ease-out forwards" }}>{r.emoji}</div>
+      ))}
+
+      {/* THREE.js canvas */}
+      <div ref={useRef(null) as React.RefObject<HTMLDivElement>} id="ava-three-mount"
+        style={{ width:"100%", height:"100%", cursor:"pointer" }}
+        onClick={handleClick}
+      />
+    </div>
+  );
+}
+
+// Fix: we need the mountRef inside the component, not passed externally
+// Rewriting Ava3D with internal ref properly
+function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: () => void }) {
+  const mountRef   = useRef<HTMLDivElement>(null);
+  const stateRef   = useRef<AvaState>("idle");
+  const animIdRef  = useRef<number>(0);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [bubble, setBubble]       = useState<string|null>(null);
+  const reactionId = useRef(0);
+
+  stateRef.current = avaState;
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    const scene = new THREE.Scene();
+    const W = mount.clientWidth || 380, H = mount.clientHeight || 520;
+    const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
+    camera.position.set(0, 1.35, 4.8);
+    camera.lookAt(0, 1.2, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(W, H);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    mount.appendChild(renderer.domElement);
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(3, 6, 5); scene.add(key);
+    const rim = new THREE.DirectionalLight(0x00ffd0, 0.7);
+    rim.position.set(-4, 3, -3); scene.add(rim);
+    const fill = new THREE.DirectionalLight(0x88ccff, 0.3);
+    fill.position.set(-2, 0, 4); scene.add(fill);
+
+    // Materials
+    const teal     = new THREE.MeshStandardMaterial({ color:0x00b8a2, roughness:0.22, metalness:0.18 });
+    const darkTeal = new THREE.MeshStandardMaterial({ color:0x007a6a, roughness:0.38, metalness:0.12 });
+    const deepTeal = new THREE.MeshStandardMaterial({ color:0x00564c, roughness:0.5,  metalness:0.1  });
+    const skin     = new THREE.MeshStandardMaterial({ color:0x00cdb5, roughness:0.45, metalness:0.05 });
+    const hair     = new THREE.MeshStandardMaterial({ color:0x003530, roughness:0.9  });
+    const beltMat  = new THREE.MeshStandardMaterial({ color:0x001f1c, roughness:0.3, metalness:0.7  });
+    const buckle   = new THREE.MeshStandardMaterial({ color:0xb8860b, roughness:0.2, metalness:0.9  });
+    const packMat  = new THREE.MeshStandardMaterial({ color:0x009680, roughness:0.55, metalness:0.1 });
+
+    const char = new THREE.Group();
+    scene.add(char);
+
+    // HEAD
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.295, 36, 36), skin);
+    head.position.set(0, 2.52, 0);
+    char.add(head);
+
+    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.3, 36, 20, 0, Math.PI*2, 0, Math.PI*0.54), hair);
+    hairCap.position.copy(head.position);
+    char.add(hairCap);
+
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.112, 20, 20), hair);
+    bun.position.set(0, 2.78, -0.22);
+    char.add(bun);
+
+    for (let i=0; i<7; i++) {
+      const a = (i/7)*Math.PI + 0.2;
+      const loc = new THREE.Mesh(new THREE.CylinderGeometry(0.017,0.011,0.3,8), hair);
+      loc.position.set(Math.sin(a)*0.25, 2.38, Math.cos(a)*0.22 - 0.04);
+      loc.rotation.z = Math.sin(a)*0.16;
+      char.add(loc);
+    }
+
+    const earL = new THREE.Mesh(new THREE.SphereGeometry(0.058,14,14), skin);
+    earL.position.set(0.3, 2.48, 0); char.add(earL);
+    const earR = earL.clone(); earR.position.set(-0.3, 2.48, 0); char.add(earR);
+    const erL = new THREE.Mesh(new THREE.SphereGeometry(0.02,10,10), buckle);
+    erL.position.set(0.33, 2.4, 0); char.add(erL);
+    const erR = erL.clone(); erR.position.set(-0.33, 2.4, 0); char.add(erR);
+
+    // NECK
+    char.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.088,0.105,0.17,18), skin), { position: new THREE.Vector3(0,2.16,0) }));
+
+    // TORSO
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.265,0.225,0.62,22), teal);
+    torso.position.set(0,1.72,0); char.add(torso);
+
+    const sL = new THREE.Mesh(new THREE.SphereGeometry(0.13,18,18), teal);
+    sL.position.set(0.29,1.98,0); char.add(sL);
+    const sR = sL.clone(); sR.position.set(-0.29,1.98,0); char.add(sR);
+
+    // ARMS CROSSED
+    const lUp = new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.36,14), teal);
+    lUp.position.set(0.3,1.8,0.05); lUp.rotation.z=-1.15; lUp.rotation.x=0.22; char.add(lUp);
+    const rUp = new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.36,14), teal);
+    rUp.position.set(-0.3,1.8,0.05); rUp.rotation.z=1.15; rUp.rotation.x=0.22; char.add(rUp);
+
+    const lFore = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.052,0.42,12), skin);
+    lFore.position.set(0.04,1.67,0.22); lFore.rotation.z=Math.PI/2; lFore.rotation.y=0.12; char.add(lFore);
+    const rFore = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.052,0.42,12), skin);
+    rFore.position.set(-0.04,1.6,0.22); rFore.rotation.z=Math.PI/2; rFore.rotation.y=-0.12; char.add(rFore);
+
+    const lHnd = new THREE.Mesh(new THREE.SphereGeometry(0.068,12,12), skin);
+    lHnd.position.set(-0.24,1.6,0.22); char.add(lHnd);
+    const rHnd = lHnd.clone(); rHnd.position.set(0.24,1.67,0.22); char.add(rHnd);
+
+    // WAVE ARM (right side, rotates up)
+    const waveGrp = new THREE.Group();
+    waveGrp.position.set(-0.29,1.98,0);
+    const wU = new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.36,14), teal);
+    wU.position.y = -0.18; waveGrp.add(wU);
+    const wF = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.052,0.36,12), skin);
+    wF.position.y = -0.52; waveGrp.add(wF);
+    const wH = new THREE.Mesh(new THREE.SphereGeometry(0.068,12,12), skin);
+    wH.position.y = -0.72; waveGrp.add(wH);
+    waveGrp.visible = false;
+    char.add(waveGrp);
+
+    // HIPS
+    const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.245,0.228,0.26,22), darkTeal);
+    hips.position.set(0,1.26,0); char.add(hips);
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.255,0.255,0.06,22), beltMat);
+    belt.position.set(0,1.27,0); char.add(belt);
+    const bBox = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.05,0.04), buckle);
+    bBox.position.set(0,1.27,0.258); char.add(bBox);
+
+    // LEGS
+    for (const x of [0.12, -0.12]) {
+      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.112,0.1,0.46,16), darkTeal);
+      thigh.position.set(x,0.88,0); char.add(thigh);
+      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.088,0.076,0.44,14), darkTeal);
+      shin.position.set(x,0.42,0); char.add(shin);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.092,0.092,0.07,14), deepTeal);
+      cuff.position.set(x,0.215,0); char.add(cuff);
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.175,0.11,0.3), deepTeal);
+      boot.position.set(x,0.105,0.04); char.add(boot);
+      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.03,0.31), beltMat);
+      sole.position.set(x,0.045,0.04); char.add(sole);
+    }
+
+    // BACKPACK
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.34,0.44,0.14), packMat);
+    pack.position.set(0,1.7,-0.3); char.add(pack);
+    const packTop = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.12), packMat);
+    packTop.position.set(0,1.96,-0.3); char.add(packTop);
+    for (const x of [0.1,-0.1]) {
+      const st = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.62,0.04), darkTeal);
+      st.position.set(x,1.72,-0.16); char.add(st);
+    }
+
+    char.position.y = -1.35;
+
+    // Mouse
+    let mX=0, mY=0;
+    const onMouse = (e:MouseEvent) => {
+      mX = (e.clientX/window.innerWidth - 0.75)*2;
+      mY = (e.clientY/window.innerHeight - 0.5)*2;
+    };
+    window.addEventListener("mousemove", onMouse);
+
+    let f=0, wavePhase=0;
+    const loop = () => {
+      f++;
+      const t = f*0.016;
+      const state = stateRef.current;
+      const breathe = Math.sin(t*0.85)*0.028;
+
+      char.position.y = -1.35 + breathe;
+      char.rotation.y = Math.sin(t*0.22)*0.035 + mX*0.06;
+      char.rotation.x = 0;
+      char.rotation.z = 0;
+
+      head.rotation.y = mX*0.22;
+      head.rotation.x = mY*-0.1;
+      head.rotation.z = 0;
+      hairCap.rotation.copy(head.rotation);
+
+      waveGrp.visible = state === "waving";
+
+      if (state==="talking") {
+        char.position.y = -1.35 + breathe + Math.sin(t*7)*0.016;
+        char.rotation.x = Math.sin(t*7)*0.01;
+      } else if (state==="thinking") {
+        head.rotation.z = 0.16 + Math.sin(t*0.55)*0.14;
+        char.position.y = -1.35 + breathe + Math.sin(t*0.5)*0.02;
+      } else if (state==="happy") {
+        char.position.y = -1.35 + Math.abs(Math.sin(t*5))*0.11;
+        char.rotation.z = Math.sin(t*5)*0.04;
+      } else if (state==="waving") {
+        waveGrp.rotation.z = Math.PI*0.2 + Math.sin(wavePhase)*0.6;
+        waveGrp.rotation.x = -0.25;
+        wavePhase += 0.18;
+      } else {
+        wavePhase = 0;
+      }
+
+      renderer.render(scene, camera);
+      animIdRef.current = requestAnimationFrame(loop);
+    };
+    animIdRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(animIdRef.current);
+      window.removeEventListener("mousemove", onMouse);
+      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
+      renderer.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (Math.random() < 0.4) {
+        setBubble(IDLE_COMMENTS[Math.floor(Math.random()*IDLE_COMMENTS.length)]);
+        setTimeout(() => setBubble(null), 2800);
+      }
+    }, 9000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const handleClick = () => {
+    const emoji = CLICK_REACTIONS[Math.floor(Math.random()*CLICK_REACTIONS.length)];
+    const id = reactionId.current++;
+    setReactions(p => [...p, { emoji, id }]);
+    setTimeout(() => setReactions(p => p.filter(r => r.id !== id)), 1100);
+    onClickAva();
+  };
+
+  return (
+    <div style={{ position:"relative", width:"100%", height:"100%" }}>
+      <style>{`
+        @keyframes reactionPop { 0%{transform:scale(.5);opacity:1} 70%{transform:translateY(-52px) scale(1.3);opacity:1} 100%{transform:translateY(-80px);opacity:0} }
+        @keyframes bubblePop { 0%{transform:scale(.8);opacity:0} 12%{transform:scale(1.04);opacity:1} 85%{opacity:1} 100%{transform:scale(.9);opacity:0} }
+        @keyframes plumbob { 0%,100%{transform:translateX(-50%) translateY(0) rotate(45deg)} 50%{transform:translateX(-50%) translateY(-8px) rotate(45deg)} }
+        @keyframes glowRing { 0%{transform:translateX(-50%) scale(1);opacity:.5} 100%{transform:translateX(-50%) scale(1.6);opacity:0} }
+      `}</style>
+
+      {/* Plumbob */}
+      <div style={{ position:"absolute", top:14, left:"50%", width:20, height:20, background:"linear-gradient(135deg,#00e6b4,#00c49a)", clipPath:"polygon(50% 0%,100% 50%,50% 100%,0% 50%)", animation:"plumbob 2.8s ease-in-out infinite", boxShadow:"0 0 12px rgba(0,230,180,0.7)", zIndex:10 }} />
+
+      {bubble && (
+        <div style={{ position:"absolute", top:54, right:"105%", background:"white", borderRadius:14, padding:"7px 13px", fontSize:13, fontWeight:600, color:"#1a1a1a", whiteSpace:"nowrap", boxShadow:"0 4px 16px rgba(0,0,0,0.2)", animation:"bubblePop 2.8s ease forwards", zIndex:10 }}>
+          {bubble}
+          <div style={{ position:"absolute", right:-8, top:"50%", transform:"translateY(-50%)", borderWidth:"8px 0 8px 8px", borderStyle:"solid", borderColor:"transparent transparent transparent white" }} />
+        </div>
+      )}
+
+      {avaState==="talking" && [0,0.42,0.84].map(d=>(
+        <div key={d} style={{ position:"absolute", bottom:"16%", left:"50%", width:180, height:180, borderRadius:"50%", border:"2px solid rgba(0,210,190,0.5)", pointerEvents:"none", animation:`glowRing 1.3s ease-out ${d}s infinite` }} />
+      ))}
+
       {reactions.map(r=>(
         <div key={r.id} style={{ position:"absolute", top:"30%", left:"50%", fontSize:32, pointerEvents:"none", animation:"reactionPop 1.1s ease-out forwards" }}>{r.emoji}</div>
       ))}
 
-      {/* Full-body avatar image */}
-      <div
-        ref={imageRef}
-        className={`${bodyClass} ${avaState==="talking" ? "ava-glow" : ""}`}
-        onClick={handleClick}
-        style={{
-          cursor: "pointer",
-          transition: "transform 0.12s ease-out",
-          display: "flex", alignItems: "flex-end", justifyContent: "center",
-          flex: 1,
-        }}
-      >
-        <img
-          src="/ava-avatar.png"
-          alt="Ava"
-          style={{
-            maxHeight: "78vh",
-            width: "auto",
-            objectFit: "contain",
-            objectPosition: "bottom center",
-            display: "block",
-            pointerEvents: "none",
-            filter: "drop-shadow(0 8px 28px rgba(0,0,0,0.35))",
-          }}
-        />
-      </div>
+      <div ref={mountRef} style={{ width:"100%", height:"100%", cursor:"pointer" }} onClick={handleClick} />
 
-      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: 0.5, marginTop: 6 }}>
+      <div style={{ position:"absolute", bottom:8, left:0, right:0, textAlign:"center", fontSize:11, color:"rgba(255,255,255,0.4)", letterSpacing:0.5 }}>
         {avaState==="talking" ? "Ava is speaking ✨" : "click ava · move your mouse"}
       </div>
     </div>
@@ -184,7 +663,7 @@ export default function ChatPage() {
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
 
   useEffect(()=>{
-    const IDLES:AvaState[]=["waving","thinking","happy","lookAround"];
+    const IDLES:AvaState[]=["waving","thinking","happy"];
     const schedule=()=>{
       idleTimer.current=setTimeout(()=>{
         if(isLoading){schedule();return;}
@@ -199,7 +678,7 @@ export default function ChatPage() {
   const handleClickAva=useCallback(()=>{
     if(avaState==="talking")return;
     setAvaState("waving");
-    setTimeout(()=>setAvaState("idle"),2000);
+    setTimeout(()=>setAvaState("idle"),2200);
   },[avaState]);
 
   async function sendMessage(text:string){
@@ -236,24 +715,15 @@ export default function ChatPage() {
   }
 
   return(
-    <div style={{
-      height:"100vh",
-      background:"linear-gradient(180deg,#87CEEB 0%,#29ABE2 25%,#0086BF 55%,#005F99 80%,#003D66 100%)",
-      display:"flex", flexDirection:"row",
-      fontFamily:"'Segoe UI',system-ui,sans-serif",
-      position:"relative", overflow:"hidden"
-    }}>
+    <div style={{ height:"100vh", background:"linear-gradient(180deg,#87CEEB 0%,#29ABE2 25%,#0086BF 55%,#005F99 80%,#003D66 100%)", display:"flex", flexDirection:"row", fontFamily:"'Segoe UI',system-ui,sans-serif", position:"relative", overflow:"hidden" }}>
       <TropicalBackground/>
 
-      {/* LEFT — chat panel */}
+      {/* LEFT — chat */}
       <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", zIndex:1, minWidth:0 }}>
-        {/* Header */}
         <div style={{ textAlign:"left", padding:"22px 28px 0", color:"white" }}>
           <h1 style={{ margin:0, fontSize:30, fontWeight:900, letterSpacing:2, textShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>Ava</h1>
           <p style={{ margin:"3px 0 0", fontSize:13, opacity:0.88 }}>Your Bahamian Culture Guide 🌺</p>
         </div>
-
-        {/* Messages */}
         <div style={{ flex:1, overflowY:"auto", padding:"16px 24px 12px", display:"flex", flexDirection:"column", gap:12 }}>
           {messages.length===0?(
             <div style={{ color:"rgba(255,255,255,0.92)", paddingTop:8 }}>
@@ -282,8 +752,6 @@ export default function ChatPage() {
           ))}
           <div ref={bottomRef}/>
         </div>
-
-        {/* Input */}
         <form onSubmit={e=>{e.preventDefault();sendMessage(input);}} style={{ display:"flex", gap:10, padding:"14px 24px", background:"rgba(0,0,0,0.25)", backdropFilter:"blur(12px)", borderTop:"1px solid rgba(255,255,255,0.15)" }}>
           <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask about the Bahamas..." disabled={isLoading}
             style={{ flex:1, padding:"13px 20px", borderRadius:32, border:"none", background:"rgba(255,255,255,0.92)", fontSize:14, outline:"none", color:"#1a1a1a" }}/>
@@ -294,12 +762,8 @@ export default function ChatPage() {
         </form>
       </div>
 
-      {/* RIGHT — Ava full body */}
-      <div style={{
-        width: "clamp(260px, 35%, 440px)",
-        display:"flex", alignItems:"flex-end", justifyContent:"center",
-        position:"relative", zIndex:2, paddingBottom:0, flexShrink:0,
-      }}>
+      {/* RIGHT — 3D Ava */}
+      <div style={{ width:"clamp(280px,36%,460px)", display:"flex", alignItems:"stretch", justifyContent:"center", position:"relative", zIndex:2, flexShrink:0 }}>
         <AvaAvatar avaState={avaState} onClickAva={handleClickAva}/>
       </div>
     </div>

@@ -16,6 +16,12 @@ const SUGGESTED = [
 const CLICK_REACTIONS = ["👋🏾","😄","🌺","✨","💛","🌊"];
 const IDLE_COMMENTS   = ["Hey there! 😊","Ask me anything!","Did you know… 🌴","I love the Bahamas ❤️","The ocean is calling 🌊"];
 
+/* helper — capsule oriented along Z then rotated into place */
+function cap(rx: number, ry: number, len: number, mat: THREE.Material) {
+  const g = new THREE.CapsuleGeometry(Math.min(rx, ry), len, 8, 18);
+  return new THREE.Mesh(g, mat);
+}
+
 function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: () => void }) {
   const mountRef  = useRef<HTMLDivElement>(null);
   const stateRef  = useRef<AvaState>("idle");
@@ -30,146 +36,207 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
     const mount = mountRef.current;
     if (!mount) return;
 
-    /* ── Scene ── */
+    /* ── Renderer ── */
     const scene = new THREE.Scene();
     const W = mount.clientWidth  || 380;
-    const H = mount.clientHeight || 520;
-    const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
-    camera.position.set(0, 1.35, 4.8);
-    camera.lookAt(0, 1.2, 0);
+    const H = mount.clientHeight || 600;
+    const camera = new THREE.PerspectiveCamera(44, W / H, 0.1, 100);
+    // Pull back enough to see full body (feet at ~-1.6, head at ~1.5)
+    camera.position.set(0, 0.1, 5.2);
+    camera.lookAt(0, 0.0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(W, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = false;
     mount.appendChild(renderer.domElement);
 
     /* ── Lights ── */
-    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const key = new THREE.DirectionalLight(0xffffff, 1.2);
-    key.position.set(3, 6, 5); scene.add(key);
-    const rim = new THREE.DirectionalLight(0x00ffd0, 0.7);
-    rim.position.set(-4, 3, -3); scene.add(rim);
-    const fill = new THREE.DirectionalLight(0x88ccff, 0.3);
-    fill.position.set(-2, 0, 4); scene.add(fill);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    key.position.set(2, 5, 4); scene.add(key);
+    const rim = new THREE.DirectionalLight(0x00ffe0, 0.75);
+    rim.position.set(-4, 2, -2); scene.add(rim);
+    const bot = new THREE.DirectionalLight(0x4488ff, 0.25);
+    bot.position.set(0, -3, 3); scene.add(bot);
 
     /* ── Materials ── */
-    const teal     = new THREE.MeshStandardMaterial({ color:0x00b8a2, roughness:0.22, metalness:0.18 });
-    const darkTeal = new THREE.MeshStandardMaterial({ color:0x007a6a, roughness:0.38, metalness:0.12 });
-    const deepTeal = new THREE.MeshStandardMaterial({ color:0x00564c, roughness:0.5,  metalness:0.1  });
-    const skin     = new THREE.MeshStandardMaterial({ color:0x00cdb5, roughness:0.45, metalness:0.05 });
-    const hair     = new THREE.MeshStandardMaterial({ color:0x003530, roughness:0.9  });
-    const beltMat  = new THREE.MeshStandardMaterial({ color:0x001f1c, roughness:0.3, metalness:0.7  });
-    const buckle   = new THREE.MeshStandardMaterial({ color:0xb8860b, roughness:0.2, metalness:0.9  });
-    const packMat  = new THREE.MeshStandardMaterial({ color:0x009680, roughness:0.55, metalness:0.1 });
+    const C  = (hex: number, r = 0.28, m = 0.12) =>
+      new THREE.MeshStandardMaterial({ color: hex, roughness: r, metalness: m });
+    const teal     = C(0x00b8a2);
+    const midTeal  = C(0x009888, 0.35, 0.1);
+    const darkTeal = C(0x006b5c, 0.4,  0.1);
+    const deepTeal = C(0x004d42, 0.5,  0.1);
+    const skin     = C(0x00ccb4, 0.45, 0.05);
+    const hair     = C(0x002e28, 0.9,  0.0);
+    const beltMat  = C(0x111111, 0.3,  0.7);
+    const gold     = C(0xb8860b, 0.2,  0.9);
+    const packMat  = C(0x009080, 0.55, 0.1);
 
+    /* ── Character group ── */
     const char = new THREE.Group();
     scene.add(char);
 
-    /* ── Head ── */
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.295, 36, 36), skin);
-    head.position.set(0, 2.52, 0);
-    char.add(head);
+    // ─ HEAD ─
+    const headGrp = new THREE.Group();
+    headGrp.position.set(0, 1.52, 0);
+    char.add(headGrp);
 
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 36, 36), skin);
+    headGrp.add(head);
+
+    // Hair — smooth cap covering top+back
     const hairCap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.3, 36, 20, 0, Math.PI * 2, 0, Math.PI * 0.54), hair);
-    hairCap.position.copy(head.position);
-    char.add(hairCap);
+      new THREE.SphereGeometry(0.275, 36, 24, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
+    headGrp.add(hairCap);
 
-    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.112, 20, 20), hair);
-    bun.position.set(0, 2.78, -0.22);
-    char.add(bun);
+    // Bun / updo at back-top
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 20), hair);
+    bun.position.set(0, 0.22, -0.2);
+    headGrp.add(bun);
 
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI + 0.2;
-      const loc = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.011, 0.3, 8), hair);
-      loc.position.set(Math.sin(a) * 0.25, 2.38, Math.cos(a) * 0.22 - 0.04);
-      loc.rotation.z = Math.sin(a) * 0.16;
-      char.add(loc);
+    // A few locs framing the face (front sides only)
+    for (let i = 0; i < 4; i++) {
+      const side = i < 2 ? 1 : -1;
+      const fwd  = i % 2 === 0 ? 0.05 : 0.1;
+      const loc  = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.22, 6, 8), hair);
+      loc.position.set(side * 0.22, -0.18, fwd);
+      loc.rotation.z = side * 0.15;
+      headGrp.add(loc);
     }
 
-    const earL = new THREE.Mesh(new THREE.SphereGeometry(0.058, 14, 14), skin);
-    earL.position.set(0.3, 2.48, 0); char.add(earL);
-    const earR = earL.clone(); earR.position.set(-0.3, 2.48, 0); char.add(earR);
+    // Ears
+    const earL = new THREE.Mesh(new THREE.SphereGeometry(0.053, 14, 14), skin);
+    earL.position.set(0.275, 0.02, 0); headGrp.add(earL);
+    const earR = earL.clone(); earR.position.set(-0.275, 0.02, 0); headGrp.add(earR);
 
-    const erL = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 10), buckle);
-    erL.position.set(0.33, 2.4, 0); char.add(erL);
-    const erR = erL.clone(); erR.position.set(-0.33, 2.4, 0); char.add(erR);
+    // Earrings (small gold drops)
+    const erL = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 10), gold);
+    erL.position.set(0.29, -0.06, 0); headGrp.add(erL);
+    const erR = erL.clone(); erR.position.set(-0.29, -0.06, 0); headGrp.add(erR);
 
-    /* ── Neck ── */
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.105, 0.17, 18), skin);
-    neck.position.set(0, 2.16, 0); char.add(neck);
+    // ─ NECK ─
+    const neck = cap(0.075, 0.075, 0.1, skin);
+    neck.position.set(0, 1.26, 0);
+    char.add(neck);
 
-    /* ── Torso ── */
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.265, 0.225, 0.62, 22), teal);
-    torso.position.set(0, 1.72, 0); char.add(torso);
+    // ─ TORSO — tapered using LatheGeometry ─
+    const profile = [
+      new THREE.Vector2(0.14, 0),    // waist bottom
+      new THREE.Vector2(0.16, 0.12),
+      new THREE.Vector2(0.22, 0.28), // chest width
+      new THREE.Vector2(0.23, 0.42),
+      new THREE.Vector2(0.22, 0.52), // shoulder narrow
+      new THREE.Vector2(0.20, 0.58),
+    ];
+    const torsoGeo = new THREE.LatheGeometry(profile, 28);
+    const torso = new THREE.Mesh(torsoGeo, teal);
+    torso.position.set(0, 0.82, 0);
+    torso.rotation.y = Math.PI / 28; // align seam to back
+    char.add(torso);
 
-    const sL = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 18), teal);
-    sL.position.set(0.29, 1.98, 0); char.add(sL);
-    const sR = sL.clone(); sR.position.set(-0.29, 1.98, 0); char.add(sR);
+    // Shoulder spheres (small, close to body)
+    const shL = new THREE.Mesh(new THREE.SphereGeometry(0.115, 18, 18), teal);
+    shL.position.set(0.24, 1.28, 0); char.add(shL);
+    const shR = shL.clone(); shR.position.set(-0.24, 1.28, 0); char.add(shR);
 
-    /* ── Arms crossed ── */
-    const lUp = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 14), teal);
-    lUp.position.set(0.3, 1.8, 0.05); lUp.rotation.z = -1.15; lUp.rotation.x = 0.22; char.add(lUp);
-    const rUp = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 14), teal);
-    rUp.position.set(-0.3, 1.8, 0.05); rUp.rotation.z = 1.15; rUp.rotation.x = 0.22; char.add(rUp);
+    // ─ ARMS CROSSED — upper arms angled down-inward ─
+    // Left upper arm
+    const lUp = cap(0.065, 0.065, 0.28, teal);
+    lUp.position.set(0.3, 1.14, 0.05);
+    lUp.rotation.z = -Math.PI / 2.4;
+    lUp.rotation.x =  0.15;
+    char.add(lUp);
 
-    const lFore = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.052, 0.42, 12), skin);
-    lFore.position.set(0.04, 1.67, 0.22); lFore.rotation.z = Math.PI / 2; lFore.rotation.y = 0.12; char.add(lFore);
-    const rFore = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.052, 0.42, 12), skin);
-    rFore.position.set(-0.04, 1.6, 0.22); rFore.rotation.z = Math.PI / 2; rFore.rotation.y = -0.12; char.add(rFore);
+    // Right upper arm
+    const rUp = cap(0.065, 0.065, 0.28, teal);
+    rUp.position.set(-0.3, 1.14, 0.05);
+    rUp.rotation.z =  Math.PI / 2.4;
+    rUp.rotation.x =  0.15;
+    char.add(rUp);
 
-    const lHnd = new THREE.Mesh(new THREE.SphereGeometry(0.068, 12, 12), skin);
-    lHnd.position.set(-0.24, 1.6, 0.22); char.add(lHnd);
-    const rHnd = lHnd.clone(); rHnd.position.set(0.24, 1.67, 0.22); char.add(rHnd);
+    // Forearms — crossing horizontally in front of torso
+    const lFore = cap(0.055, 0.055, 0.34, skin);
+    lFore.position.set(0.05, 0.98, 0.2);
+    lFore.rotation.z = Math.PI / 2;
+    lFore.rotation.y =  0.1;
+    char.add(lFore);
 
-    /* ── Wave arm (right, toggles visible) ── */
+    const rFore = cap(0.055, 0.055, 0.34, skin);
+    rFore.position.set(-0.05, 0.93, 0.2);
+    rFore.rotation.z = Math.PI / 2;
+    rFore.rotation.y = -0.1;
+    char.add(rFore);
+
+    // Hands (small spheres at ends of forearms)
+    const lHnd = new THREE.Mesh(new THREE.SphereGeometry(0.062, 12, 12), skin);
+    lHnd.position.set(-0.22, 0.93, 0.22); char.add(lHnd);
+    const rHnd = lHnd.clone(); rHnd.position.set(0.22, 0.98, 0.22); char.add(rHnd);
+
+    // ─ WAVE ARM (left, swings up on "waving") ─
     const waveGrp = new THREE.Group();
-    waveGrp.position.set(-0.29, 1.98, 0);
-    const wU = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 14), teal);
-    wU.position.y = -0.18; waveGrp.add(wU);
-    const wF = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.052, 0.36, 12), skin);
-    wF.position.y = -0.52; waveGrp.add(wF);
-    const wH = new THREE.Mesh(new THREE.SphereGeometry(0.068, 12, 12), skin);
-    wH.position.y = -0.72; waveGrp.add(wH);
+    waveGrp.position.set(0.24, 1.28, 0);
+
+    const wUpper = cap(0.065, 0.065, 0.28, teal);
+    wUpper.position.y = -0.14; waveGrp.add(wUpper);
+    const wFore = cap(0.055, 0.055, 0.28, skin);
+    wFore.position.y = -0.42; waveGrp.add(wFore);
+    const wHnd = new THREE.Mesh(new THREE.SphereGeometry(0.062, 12, 12), skin);
+    wHnd.position.y = -0.58; waveGrp.add(wHnd);
+
     waveGrp.visible = false;
     char.add(waveGrp);
 
-    /* ── Hips + belt ── */
-    const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.228, 0.26, 22), darkTeal);
-    hips.position.set(0, 1.26, 0); char.add(hips);
-    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.255, 0.255, 0.06, 22), beltMat);
-    belt.position.set(0, 1.27, 0); char.add(belt);
-    const bBox = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.04), buckle);
-    bBox.position.set(0, 1.27, 0.258); char.add(bBox);
+    // ─ HIPS ─
+    const hipProfile = [
+      new THREE.Vector2(0.18, 0),
+      new THREE.Vector2(0.22, 0.1),
+      new THREE.Vector2(0.21, 0.2),
+      new THREE.Vector2(0.16, 0.28),
+    ];
+    const hips = new THREE.Mesh(new THREE.LatheGeometry(hipProfile, 24), darkTeal);
+    hips.position.set(0, 0.56, 0);
+    char.add(hips);
 
-    /* ── Legs ── */
-    for (const x of [0.12, -0.12]) {
-      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.1, 0.46, 16), darkTeal);
-      thigh.position.set(x, 0.88, 0); char.add(thigh);
-      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.076, 0.44, 14), darkTeal);
-      shin.position.set(x, 0.42, 0); char.add(shin);
-      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.092, 0.07, 14), deepTeal);
-      cuff.position.set(x, 0.215, 0); char.add(cuff);
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.175, 0.11, 0.3), deepTeal);
-      boot.position.set(x, 0.105, 0.04); char.add(boot);
-      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.03, 0.31), beltMat);
-      sole.position.set(x, 0.045, 0.04); char.add(sole);
+    // Belt
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.215, 0.05, 24), beltMat);
+    belt.position.set(0, 0.815, 0); char.add(belt);
+    const bBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.042, 0.035), gold);
+    bBuckle.position.set(0, 0.815, 0.217); char.add(bBuckle);
+
+    // ─ LEGS ─
+    for (const [x, sign] of [[0.1, 1], [-0.1, -1]] as [number, number][]) {
+      // Thigh
+      const thigh = cap(0.1, 0.1, 0.38, darkTeal);
+      thigh.position.set(x * sign, 0.3, 0); char.add(thigh);
+      // Shin
+      const shin = cap(0.082, 0.082, 0.36, darkTeal);
+      shin.position.set(x * sign, -0.08, 0); char.add(shin);
+      // Cuff
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.086, 0.086, 0.06, 18), midTeal);
+      cuff.position.set(x * sign, -0.27, 0); char.add(cuff);
+      // Boot
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.1, 0.27), deepTeal);
+      boot.position.set(x * sign, -0.36, 0.035); char.add(boot);
+      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.162, 0.028, 0.275), beltMat);
+      sole.position.set(x * sign, -0.414, 0.035); char.add(sole);
     }
 
-    /* ── Backpack ── */
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.44, 0.14), packMat);
-    pack.position.set(0, 1.7, -0.3); char.add(pack);
-    const packTop = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.12), packMat);
-    packTop.position.set(0, 1.96, -0.3); char.add(packTop);
-    for (const x of [0.1, -0.1]) {
-      const st = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.62, 0.04), darkTeal);
-      st.position.set(x, 1.72, -0.16); char.add(st);
+    // ─ BACKPACK ─
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.38, 0.12), packMat);
+    pack.position.set(0, 1.02, -0.28); char.add(pack);
+    const packLid = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.09, 0.1), packMat);
+    packLid.position.set(0, 1.24, -0.27); char.add(packLid);
+    for (const x of [0.09, -0.09]) {
+      const strap = cap(0.028, 0.028, 0.48, midTeal);
+      strap.position.set(x, 1.0, -0.14); char.add(strap);
     }
 
-    char.position.y = -1.35;
+    // ─ Position character ─
+    char.position.y = -0.58;  // shift down so full body fits in frame
 
-    /* ── Mouse tracking ── */
+    /* ── Mouse ── */
     let mX = 0, mY = 0;
     const onMouse = (e: MouseEvent) => {
       mX = (e.clientX / window.innerWidth  - 0.75) * 2;
@@ -183,32 +250,30 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
       f++;
       const t = f * 0.016;
       const state = stateRef.current;
-      const breathe = Math.sin(t * 0.85) * 0.028;
+      const breathe = Math.sin(t * 0.85) * 0.025;
 
-      char.position.y = -1.35 + breathe;
-      char.rotation.y = Math.sin(t * 0.22) * 0.035 + mX * 0.06;
+      char.position.y = -0.58 + breathe;
+      char.rotation.y = Math.sin(t * 0.22) * 0.03 + mX * 0.05;
       char.rotation.x = 0;
       char.rotation.z = 0;
 
-      head.rotation.y = mX * 0.22;
-      head.rotation.x = mY * -0.1;
-      head.rotation.z = 0;
-      hairCap.rotation.copy(head.rotation);
+      // Head follows cursor
+      headGrp.rotation.y = mX * 0.2;
+      headGrp.rotation.x = mY * -0.1;
+      headGrp.rotation.z = 0;
 
       waveGrp.visible = state === "waving";
 
       if (state === "talking") {
-        char.position.y = -1.35 + breathe + Math.sin(t * 7) * 0.016;
-        char.rotation.x = Math.sin(t * 7) * 0.01;
+        char.position.y = -0.58 + breathe + Math.sin(t * 7) * 0.013;
       } else if (state === "thinking") {
-        head.rotation.z = 0.16 + Math.sin(t * 0.55) * 0.14;
-        char.position.y = -1.35 + breathe + Math.sin(t * 0.5) * 0.02;
+        headGrp.rotation.z = 0.14 + Math.sin(t * 0.6) * 0.12;
       } else if (state === "happy") {
-        char.position.y = -1.35 + Math.abs(Math.sin(t * 5)) * 0.11;
-        char.rotation.z = Math.sin(t * 5) * 0.04;
+        char.position.y = -0.58 + Math.abs(Math.sin(t * 5)) * 0.1;
+        char.rotation.z = Math.sin(t * 5) * 0.035;
       } else if (state === "waving") {
-        waveGrp.rotation.z = Math.PI * 0.2 + Math.sin(wavePhase) * 0.6;
-        waveGrp.rotation.x = -0.25;
+        waveGrp.rotation.z = Math.PI * 0.15 + Math.sin(wavePhase) * 0.65;
+        waveGrp.rotation.x = -0.2;
         wavePhase += 0.18;
       } else {
         wavePhase = 0;
@@ -250,15 +315,13 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
     <div style={{ position:"relative", width:"100%", height:"100%" }}>
       <style>{`
         @keyframes reactionPop { 0%{transform:scale(.5);opacity:1} 70%{transform:translateY(-52px) scale(1.3);opacity:1} 100%{transform:translateY(-80px);opacity:0} }
-        @keyframes bubblePop { 0%{transform:scale(.8);opacity:0} 12%{transform:scale(1.04);opacity:1} 85%{opacity:1} 100%{transform:scale(.9);opacity:0} }
-        @keyframes plumbob { 0%,100%{transform:translateX(-50%) translateY(0) rotate(45deg)} 50%{transform:translateX(-50%) translateY(-8px) rotate(45deg)} }
-        @keyframes glowRing { 0%{transform:translateX(-50%) scale(1);opacity:.5} 100%{transform:translateX(-50%) scale(1.6);opacity:0} }
+        @keyframes bubblePop   { 0%{transform:scale(.8);opacity:0} 12%{transform:scale(1.04);opacity:1} 85%{opacity:1} 100%{transform:scale(.9);opacity:0} }
+        @keyframes plumbob     { 0%,100%{transform:translateX(-50%) translateY(0) rotate(45deg)} 50%{transform:translateX(-50%) translateY(-8px) rotate(45deg)} }
+        @keyframes glowRing    { 0%{transform:translateX(-50%) scale(1);opacity:.5} 100%{transform:translateX(-50%) scale(1.6);opacity:0} }
       `}</style>
 
-      {/* Plumbob */}
       <div style={{ position:"absolute", top:14, left:"50%", width:20, height:20, background:"linear-gradient(135deg,#00e6b4,#00c49a)", clipPath:"polygon(50% 0%,100% 50%,50% 100%,0% 50%)", animation:"plumbob 2.8s ease-in-out infinite", boxShadow:"0 0 12px rgba(0,230,180,0.7)", zIndex:10 }} />
 
-      {/* Speech bubble */}
       {bubble && (
         <div style={{ position:"absolute", top:54, right:"105%", background:"white", borderRadius:14, padding:"7px 13px", fontSize:13, fontWeight:600, color:"#1a1a1a", whiteSpace:"nowrap", boxShadow:"0 4px 16px rgba(0,0,0,0.2)", animation:"bubblePop 2.8s ease forwards", zIndex:10 }}>
           {bubble}
@@ -266,17 +329,14 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         </div>
       )}
 
-      {/* Talking glow rings */}
       {avaState === "talking" && [0, 0.42, 0.84].map(d => (
-        <div key={d} style={{ position:"absolute", bottom:"16%", left:"50%", width:180, height:180, borderRadius:"50%", border:"2px solid rgba(0,210,190,0.5)", pointerEvents:"none", animation:`glowRing 1.3s ease-out ${d}s infinite` }} />
+        <div key={d} style={{ position:"absolute", bottom:"14%", left:"50%", width:180, height:180, borderRadius:"50%", border:"2px solid rgba(0,210,190,0.5)", pointerEvents:"none", animation:`glowRing 1.3s ease-out ${d}s infinite` }} />
       ))}
 
-      {/* Emoji reactions */}
       {reactions.map(r => (
         <div key={r.id} style={{ position:"absolute", top:"30%", left:"50%", fontSize:32, pointerEvents:"none", animation:"reactionPop 1.1s ease-out forwards" }}>{r.emoji}</div>
       ))}
 
-      {/* Three.js canvas mounts here */}
       <div ref={mountRef} style={{ width:"100%", height:"100%", cursor:"pointer" }} onClick={handleClick} />
 
       <div style={{ position:"absolute", bottom:8, left:0, right:0, textAlign:"center", fontSize:11, color:"rgba(255,255,255,0.4)", letterSpacing:0.5 }}>

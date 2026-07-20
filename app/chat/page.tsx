@@ -15,80 +15,27 @@ const SUGGESTED = [
 const CLICK_REACTIONS = ["👋🏾","😄","🌺","✨","💛","🌊"];
 const IDLE_COMMENTS   = ["Hey there! 😊","Ask me anything!","Did you know… 🌴","I love the Bahamas ❤️","The ocean is calling 🌊"];
 
-// ─── Ava Avatar: real photo + SVG overlays for live animation ─────────────────
 function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef     = useRef<HTMLDivElement>(null);
-  const lPupilRef    = useRef<SVGCircleElement>(null);
-  const rPupilRef    = useRef<SVGCircleElement>(null);
-  const lLidRef      = useRef<SVGEllipseElement>(null);
-  const rLidRef      = useRef<SVGEllipseElement>(null);
-
-  const [mouthOpen,  setMouthOpen]  = useState(false);
-  const [reactions,  setReactions]  = useState<Reaction[]>([]);
-  const [bubble,     setBubble]     = useState<string | null>(null);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [bubble, setBubble]       = useState<string | null>(null);
   const reactionId = useRef(0);
 
-  // ── Cursor tracking: head tilt + pupil movement ──
+  // Cursor tracking — 3D head tilt only
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      if (!containerRef.current || !imageRef.current) return;
-      const r  = containerRef.current.getBoundingClientRect();
-      const dx = (e.clientX - (r.left + r.width  * 0.5)) / window.innerWidth;
-      const dy = (e.clientY - (r.top  + r.height * 0.4)) / window.innerHeight;
-
-      // Whole image tilts toward cursor (3D perspective)
+      if (!imageRef.current) return;
+      const dx = (e.clientX - window.innerWidth  * 0.5) / window.innerWidth;
+      const dy = (e.clientY - window.innerHeight * 0.4) / window.innerHeight;
       imageRef.current.style.transform =
         `perspective(700px) rotateX(${dy * -8}deg) rotateY(${dx * 12}deg)`;
-
-      // Pupils shift (max ±4px from base position)
-      const px = (dx * 4).toFixed(1);
-      const py = (dy * 4).toFixed(1);
-      if (lPupilRef.current) {
-        lPupilRef.current.setAttribute("cx", String(74 + parseFloat(px)));
-        lPupilRef.current.setAttribute("cy", String(83 + parseFloat(py)));
-      }
-      if (rPupilRef.current) {
-        rPupilRef.current.setAttribute("cx", String(138 + parseFloat(px)));
-        rPupilRef.current.setAttribute("cy", String(83 + parseFloat(py)));
-      }
     };
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
-  // ── Blinking ──
-  useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    const blink = () => {
-      [lLidRef, rLidRef].forEach(ref => {
-        if (ref.current) {
-          ref.current.style.transition = "transform 0.07s ease-in";
-          ref.current.style.transform  = "scaleY(1)";
-        }
-      });
-      setTimeout(() => {
-        [lLidRef, rLidRef].forEach(ref => {
-          if (ref.current) {
-            ref.current.style.transition = "transform 0.09s ease-out";
-            ref.current.style.transform  = "scaleY(0)";
-          }
-        });
-      }, 130);
-      t = setTimeout(blink, 2600 + Math.random() * 3800);
-    };
-    t = setTimeout(blink, 1500);
-    return () => clearTimeout(t);
-  }, []);
-
-  // ── Mouth animation while talking ──
-  useEffect(() => {
-    if (avaState !== "talking") { setMouthOpen(false); return; }
-    const iv = setInterval(() => setMouthOpen(p => !p), 200);
-    return () => clearInterval(iv);
-  }, [avaState]);
-
-  // ── Random idle speech bubbles ──
+  // Idle speech bubbles
   useEffect(() => {
     const iv = setInterval(() => {
       if (Math.random() < 0.4) {
@@ -107,7 +54,6 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
     onClickAva();
   };
 
-  // Body animation class based on state
   const bodyClass = {
     idle:       "ava-idle",
     talking:    "ava-talk",
@@ -161,67 +107,25 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         <div key={r.id} style={{ position:"absolute", top:"30%", left:"50%", fontSize:28, pointerEvents:"none", animation:"reactionPop 1.1s ease-out forwards" }}>{r.emoji}</div>
       ))}
 
-      {/* ── Main avatar: photo + SVG overlay ── */}
+      {/* Avatar — photo only, no overlays */}
       <div
         ref={imageRef}
         className={bodyClass}
-        style={{ width:SIZE, height:SIZE, borderRadius:"50%", overflow:"hidden", border:`4px solid rgba(255,215,0,0.85)`, cursor:"pointer", position:"relative", zIndex:1, transition:"transform 0.1s ease-out", boxShadow: avaState==="talking" ? undefined : "0 0 18px 4px rgba(0,180,170,0.4),0 8px 26px rgba(0,0,0,0.28)", animation: avaState==="talking" ? "glowPulse 0.55s ease-in-out infinite" : undefined }}
         onClick={handleClick}
+        style={{
+          width:SIZE, height:SIZE, borderRadius:"50%", overflow:"hidden",
+          border:"4px solid rgba(255,215,0,0.85)",
+          cursor:"pointer", position:"relative", zIndex:1,
+          transition:"transform 0.1s ease-out",
+          boxShadow: avaState==="talking" ? undefined : "0 0 18px 4px rgba(0,180,170,0.4),0 8px 26px rgba(0,0,0,0.28)",
+          animation: avaState==="talking" ? "glowPulse 0.55s ease-in-out infinite" : undefined,
+        }}
       >
-        {/* Ava's actual photo */}
         <img
           src="/ava-avatar.png"
           alt="Ava"
           style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top center", display:"block", pointerEvents:"none" }}
         />
-
-        {/* SVG overlay: moving pupils + blinking eyelids + talking mouth */}
-        {/* Coordinates tuned to match Ava's face in the image */}
-        <svg
-          viewBox={`0 0 ${SIZE} ${SIZE}`}
-          style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", pointerEvents:"none" }}
-        >
-          {/* ── Left pupil (moves with cursor) ── */}
-          <circle ref={lPupilRef} cx="74" cy="83" r="5.5" fill="rgba(8,4,2,0.55)" />
-
-          {/* ── Right pupil ── */}
-          <circle ref={rPupilRef} cx="138" cy="83" r="5.5" fill="rgba(8,4,2,0.55)" />
-
-          {/* ── Left eyelid (blink) ── */}
-          <ellipse
-            ref={lLidRef}
-            cx="74" cy="83" rx="13" ry="14"
-            fill="#BF8040"
-            style={{ transform:"scaleY(0)", transformOrigin:"74px 69px" }}
-          />
-          {/* Left upper lash cover (hides edge of eyelid) */}
-          <path d="M 61,76 Q 74,70 87,76" fill="#1A0F0A" opacity="0" />
-
-          {/* ── Right eyelid (blink) ── */}
-          <ellipse
-            ref={rLidRef}
-            cx="138" cy="83" rx="13" ry="14"
-            fill="#BF8040"
-            style={{ transform:"scaleY(0)", transformOrigin:"138px 69px" }}
-          />
-
-          {/* ── Mouth overlay (talking animation) ── */}
-          {mouthOpen && (
-            <g>
-              {/* Dark interior of open mouth */}
-              <path
-                d="M 97,128 Q 110,142 123,128 L 122,133 Q 110,147 98,133 Z"
-                fill="#4A1F10"
-                opacity="0.85"
-              />
-              {/* Teeth */}
-              <path
-                d="M 99,128 Q 110,133 121,128 L 120,133 Q 110,138 100,133 Z"
-                fill="rgba(255,255,255,0.88)"
-              />
-            </g>
-          )}
-        </svg>
       </div>
 
       <div style={{ marginTop:8, fontSize:11, color:"rgba(255,255,255,0.45)", letterSpacing:0.5 }}>
@@ -231,7 +135,6 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
   );
 }
 
-// ─── Background ───────────────────────────────────────────────────────────────
 function TropicalBackground() {
   return (
     <>
@@ -240,9 +143,7 @@ function TropicalBackground() {
         <div key={deg} style={{ position:"absolute", top:58, right:100, width:2, height:27, background:"rgba(255,220,0,0.38)", transformOrigin:"1px 0", transform:`rotate(${deg}deg) translateY(-48px)`, borderRadius:2 }} />
       ))}
       <div style={{ position:"absolute", top:58, left:30, display:"flex", opacity:0.72 }}>
-        {[36,52,36].map((s,i)=>(
-          <div key={i} style={{ width:s, height:s, background:"white", borderRadius:"50%", marginLeft:i>0?-14:0 }} />
-        ))}
+        {[36,52,36].map((s,i)=>(<div key={i} style={{ width:s, height:s, background:"white", borderRadius:"50%", marginLeft:i>0?-14:0 }} />))}
       </div>
       <svg viewBox="0 0 1440 100" preserveAspectRatio="none" style={{ position:"absolute", bottom:0, left:0, right:0, width:"100%", height:100 }}>
         <path d="M0,50 C240,90 480,10 720,50 C960,90 1200,10 1440,50 L1440,100 L0,100 Z" fill="rgba(0,77,122,0.45)" />
@@ -252,7 +153,6 @@ function TropicalBackground() {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const [messages,setMessages]   = useState<Message[]>([]);
   const [input,setInput]         = useState("");

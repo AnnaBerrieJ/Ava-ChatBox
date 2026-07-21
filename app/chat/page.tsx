@@ -27,10 +27,10 @@ function BeachBackground() {
 
       {/* Clouds */}
       {[
-        { top:55, left:"8%",  scale:1.1 },
-        { top:80, left:"28%", scale:0.8 },
-        { top:40, left:"45%", scale:1.3 },
-        { top:70, right:"22%", scale:0.9 },
+        { top:50, left:"8%",  scale:1.0 },
+        { top:30, left:"30%", scale:0.75 },
+        { top:38, left:"48%", scale:1.1 },
+        { top:55, right:"25%", scale:0.85 },
       ].map((c, i) => (
         <div key={i} style={{ position:"absolute", top:c.top, left:(c as any).left, right:(c as any).right, transform:`scale(${c.scale})`, display:"flex", opacity:0.88 }}>
           <div style={{ width:56, height:34, background:"white", borderRadius:"50%", boxShadow:"inset -4px -4px 8px rgba(0,0,0,0.04)" }} />
@@ -243,7 +243,7 @@ export default function ChatPage() {
         setMessages(prev => { const c=[...prev]; c[c.length-1]={role:"assistant",content:full}; return c; });
       }
     } catch {
-      setMessages(prev => { const c=[...prev]; c[c.length-1]={role:"assistant",content:"Sorry, something went wrong."}; return c; });
+      setMessages(prev => { const c=[...prev]; c[c.length-1]={role:"assistant",content:"API error — please check that ANTHROPIC_API_KEY is set in Vercel → Settings → Environment Variables."}; return c; });
     } finally {
       setIsLoading(false);
       setAvaState("happy");

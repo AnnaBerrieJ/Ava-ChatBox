@@ -76,7 +76,7 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         const model = gltf.scene;
 
         // 1. Fix Z-up → Y-up (Meshy exports Z-up)
-        model.rotation.x = -Math.PI / 2;
+        model.rotation.x = Math.PI / 2;
         model.updateMatrixWorld(true);
 
         // 2. Compute bounding box after rotation
@@ -96,8 +96,8 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         model.position.set(-c2.x, -box2.min.y, -c2.z);
 
         // 5. Teal Bahamian materials
-        const matA = new THREE.MeshStandardMaterial({ color: 0x00d4bc, roughness: 0.28, metalness: 0.06, side: THREE.FrontSide });
-        const matB = new THREE.MeshStandardMaterial({ color: 0x009e8c, roughness: 0.38, metalness: 0.06, side: THREE.FrontSide });
+        const matA = new THREE.MeshStandardMaterial({ color: 0x00d4bc, roughness: 0.28, metalness: 0.06, side: THREE.DoubleSide });
+        const matB = new THREE.MeshStandardMaterial({ color: 0x009e8c, roughness: 0.38, metalness: 0.06, side: THREE.DoubleSide });
         let mc = 0;
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {

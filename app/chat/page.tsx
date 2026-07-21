@@ -92,11 +92,12 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
       const h = el.clientHeight || 640;
 
       /* Renderer */
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, premultipliedAlpha: false });
       renderer.setSize(w, h);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       try { (renderer as any).outputColorSpace = THREE.SRGBColorSpace; } catch (_) {}
       renderer.setClearColor(0x000000, 0);
+      renderer.domElement.style.background = 'transparent';
       el.appendChild(renderer.domElement);
 
       /* Scene & camera */
@@ -129,15 +130,11 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         (gltf: any) => {
           const model = gltf.scene;
 
-          /* Flip upside-down models (Y-inverted export): rotate 180° around Z */
-          model.rotation.z = Math.PI;
-          model.updateMatrixWorld(true);
-
-          /* Detect Z-up (model lying flat) and fix */
+          /* Detect Z-up (model lying flat, Z-axis is up in export) */
           const box0  = new THREE.Box3().setFromObject(model);
           const size0 = box0.getSize(new THREE.Vector3());
           if (size0.y < size0.z * 0.5 || size0.y < size0.x * 0.5) {
-            model.rotation.x = -Math.PI / 2;
+            model.rotation.x = Math.PI / 2;
           }
           model.updateMatrixWorld(true);
 

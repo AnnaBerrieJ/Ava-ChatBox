@@ -96,6 +96,7 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
       renderer.setSize(w, h);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       try { (renderer as any).outputColorSpace = THREE.SRGBColorSpace; } catch (_) {}
+      renderer.setClearColor(0x000000, 0);
       el.appendChild(renderer.domElement);
 
       /* Scene & camera */
@@ -127,6 +128,10 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         "/avatar.glb",
         (gltf: any) => {
           const model = gltf.scene;
+
+          /* Flip upside-down models (Y-inverted export): rotate 180° around Z */
+          model.rotation.z = Math.PI;
+          model.updateMatrixWorld(true);
 
           /* Detect Z-up (model lying flat) and fix */
           const box0  = new THREE.Box3().setFromObject(model);

@@ -15,6 +15,32 @@ const SUGGESTED = [
 const CLICK_REACTIONS = ["👋🏾","😄","🌺","✨","💛","🌊"];
 const IDLE_COMMENTS   = ["Hey there! 😊","Ask me anything!","Did you know… 🌴","I love the Bahamas ❤️","The ocean is calling 🌊"];
 
+/* ─── Markdown renderer ─── */
+function renderInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*/g;
+  let last = 0, match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    if (match[1] !== undefined) parts.push(<strong key={match.index}>{match[1]}</strong>);
+    else parts.push(<em key={match.index}>{match[2]}</em>);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+function renderMarkdown(text: string): React.ReactNode {
+  if (!text) return null;
+  return text.split("\n").map((line, i) => {
+    if (line.startsWith("### ")) return <h4 key={i} style={{margin:"8px 0 2px",fontSize:14,fontWeight:700,lineHeight:1.4}}>{renderInline(line.slice(4))}</h4>;
+    if (line.startsWith("## "))  return <h3 key={i} style={{margin:"10px 0 3px",fontSize:15,fontWeight:700,lineHeight:1.4}}>{renderInline(line.slice(3))}</h3>;
+    if (line.startsWith("# "))   return <h2 key={i} style={{margin:"10px 0 4px",fontSize:16,fontWeight:800,lineHeight:1.4}}>{renderInline(line.slice(2))}</h2>;
+    if (line.trim() === "")      return <div key={i} style={{height:6}} />;
+    return <p key={i} style={{margin:0,lineHeight:1.65}}>{renderInline(line)}</p>;
+  });
+}
+
 /* ─── Beach background ─── */
 function BeachBackground() {
   return (
@@ -257,8 +283,10 @@ export default function ChatPage() {
                   <img src="/ava-avatar.png" alt="Ava" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top" }} />
                 </div>
               )}
-              <div style={{ maxWidth:"74%", padding:"11px 16px", borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", background:msg.role==="user"?"linear-gradient(135deg,#00897B,#005F99)":"rgba(255,255,255,0.88)", color:msg.role==="user"?"white":"#1a2a1e", fontSize:14, lineHeight:1.65, boxShadow:"0 3px 12px rgba(0,0,0,0.12)", whiteSpace:"pre-wrap", backdropFilter:msg.role==="assistant"?"blur(8px)":"none", border:msg.role==="assistant"?"1px solid rgba(255,255,255,0.6)":"none" }}>
-                {msg.content || (isLoading && i === messages.length-1 ? <span style={{ opacity:0.5 }}>▌</span> : null)}
+              <div style={{ maxWidth:"74%", padding:"11px 16px", borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", background:msg.role==="user"?"linear-gradient(135deg,#00897B,#005F99)":"rgba(255,255,255,0.88)", color:msg.role==="user"?"white":"#1a2a1e", fontSize:14, lineHeight:1.65, boxShadow:"0 3px 12px rgba(0,0,0,0.12)", backdropFilter:msg.role==="assistant"?"blur(8px)":"none", border:msg.role==="assistant"?"1px solid rgba(255,255,255,0.6)":"none" }}>
+                {msg.role === "assistant"
+                  ? (msg.content ? renderMarkdown(msg.content) : (isLoading && i === messages.length-1 ? <span style={{ opacity:0.5 }}>▌</span> : null))
+                  : (msg.content || null)}
               </div>
             </div>
           ))}

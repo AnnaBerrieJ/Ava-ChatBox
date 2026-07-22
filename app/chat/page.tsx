@@ -67,157 +67,24 @@ function BeachBackground() {
   );
 }
 
-/* ─── Ava 3D Avatar ─── */
+/* ─── Ava Avatar ─── */
 function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: () => void }) {
-  const mountRef   = useRef<HTMLDivElement>(null);
-  const pivotRef   = useRef<any>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const imageRef   = useRef<HTMLDivElement>(null);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [bubble, setBubble]       = useState<string | null>(null);
-  const [modelLoaded, setModelLoaded] = useState(false);
   const reactionId = useRef(0);
 
-  /* Three.js scene */
-  useEffect(() => {
-    const el = mountRef.current;
-    if (!el) return;
-
-    let animId = 0;
-
-    Promise.all([
-      import("three"),
-      import("three/examples/jsm/loaders/GLTFLoader.js" as any),
-    ]).then(([THREE, { GLTFLoader }]) => {
-      const w = el.clientWidth  || 380;
-      const h = el.clientHeight || 640;
-
-      /* Renderer */
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, premultipliedAlpha: false });
-      renderer.setSize(w, h);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      try { (renderer as any).outputColorSpace = THREE.SRGBColorSpace; } catch (_) {}
-      renderer.setClearColor(0x000000, 0);
-      renderer.domElement.style.background = 'transparent';
-      el.appendChild(renderer.domElement);
-
-      /* Scene & camera */
-      const scene  = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(50, w / h, 0.01, 100);
-      camera.position.set(0, 1, 3);
-      camera.lookAt(0, 1, 0);
-
-      /* Lighting */
-      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-      const sun = new THREE.DirectionalLight(0xfff5e0, 2.2);
-      sun.position.set(2, 5, 4);
-      scene.add(sun);
-      const fill = new THREE.DirectionalLight(0xadd8ff, 0.7);
-      fill.position.set(-3, 1, 0);
-      scene.add(fill);
-      const rim = new THREE.DirectionalLight(0xffeedd, 0.4);
-      rim.position.set(0, 2, -4);
-      scene.add(rim);
-
-      /* Pivot group — rotated by cursor */
-      const pivot = new THREE.Group();
-      pivotRef.current = pivot;
-      scene.add(pivot);
-
-      /* Load GLB */
-      const loader = new (GLTFLoader as any)();
-      loader.load(
-        "/avatar.glb",
-        (gltf: any) => {
-          const model = gltf.scene;
-
-          /* Detect Z-up (model lying flat, Z-axis is up in export) */
-          const box0  = new THREE.Box3().setFromObject(model);
-          const size0 = box0.getSize(new THREE.Vector3());
-          if (size0.y < size0.z * 0.5 || size0.y < size0.x * 0.5) {
-            model.rotation.x = Math.PI / 2;
-          }
-          model.updateMatrixWorld(true);
-
-          /* Normalise: scale so height = 1.8 units, feet at y = 0 */
-          const box1   = new THREE.Box3().setFromObject(model);
-          const size1  = box1.getSize(new THREE.Vector3());
-          const center1= box1.getCenter(new THREE.Vector3());
-          const scale  = 1.8 / Math.max(size1.y, 0.001);
-          model.scale.setScalar(scale);
-          model.position.x = -center1.x * scale;
-          model.position.z = -center1.z * scale;
-
-          const box2 = new THREE.Box3().setFromObject(model);
-          model.position.y -= box2.min.y;           // feet at y = 0
-          const height = box2.max.y - box2.min.y;
-          const mid    = height / 2;
-
-          /* Aim camera at model centre */
-          camera.position.set(0, mid, 2.6);
-          camera.lookAt(0, mid, 0);
-
-          /* Make materials double-sided */
-          model.traverse((child: any) => {
-            if (child.isMesh && child.material) {
-              const mats = Array.isArray(child.material) ? child.material : [child.material];
-              mats.forEach((m: any) => { m.side = (THREE as any).DoubleSide; });
-            }
-          });
-
-          pivot.add(model);
-          setModelLoaded(true);
-        },
-        undefined,
-        (err: any) => console.error("GLB load error:", err)
-      );
-
-      /* Render loop */
-      const animate = () => {
-        animId = requestAnimationFrame(animate);
-        renderer.render(scene, camera);
-      };
-      animate();
-
-      /* Resize handler */
-      const onResize = () => {
-        const nw = el.clientWidth;
-        const nh = el.clientHeight;
-        if (nw && nh) {
-          renderer.setSize(nw, nh);
-          camera.aspect = nw / nh;
-          camera.updateProjectionMatrix();
-        }
-      };
-      const ro = new ResizeObserver(onResize);
-      ro.observe(el);
-
-      cleanupRef.current = () => {
-        cancelAnimationFrame(animId);
-        ro.disconnect();
-        renderer.dispose();
-        try { el.removeChild(renderer.domElement); } catch (_) {}
-        pivotRef.current = null;
-      };
-    });
-
-    return () => { cleanupRef.current?.(); };
-  }, []);
-
-  /* Cursor → subtle head-turn on pivot */
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      const p = pivotRef.current;
-      if (!p) return;
+      if (!imageRef.current) return;
       const dx = (e.clientX / window.innerWidth  - 0.75) * 2;
       const dy = (e.clientY / window.innerHeight - 0.5)  * 2;
-      p.rotation.y = dx * 0.25;
-      p.rotation.x = dy * -0.1;
+      imageRef.current.style.transform = `perspective(900px) rotateX(${dy * -5}deg) rotateY(${dx * 10}deg)`;
     };
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
-  /* Idle speech bubbles */
   useEffect(() => {
     const iv = setInterval(() => {
       if (Math.random() < 0.4) {
@@ -236,9 +103,7 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
     onClickAva();
   };
 
-  const bodyClass = ({
-    idle:"ava-idle", talking:"ava-talk", waving:"ava-wave", thinking:"ava-think", happy:"ava-happy"
-  } as Record<AvaState,string>)[avaState];
+  const bodyClass = ({ idle:"ava-idle", talking:"ava-talk", waving:"ava-wave", thinking:"ava-think", happy:"ava-happy" } as Record<AvaState,string>)[avaState];
 
   return (
     <div style={{ position:"relative", width:"100%", height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-end" }}>
@@ -252,7 +117,6 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         @keyframes reactionPop { 0%{transform:scale(.5);opacity:1} 70%{transform:translateY(-52px) scale(1.3);opacity:1} 100%{transform:translateY(-80px);opacity:0} }
         @keyframes bubblePop { 0%{transform:scale(.8);opacity:0} 12%{transform:scale(1.04);opacity:1} 85%{opacity:1} 100%{transform:scale(.9);opacity:0} }
         @keyframes glowRing { 0%{transform:translateX(-50%) scale(1);opacity:.5} 100%{transform:translateX(-50%) scale(1.65);opacity:0} }
-        @keyframes spin { to{transform:rotate(360deg)} }
         .ava-idle  { animation: avaIdle  3.6s ease-in-out infinite; }
         .ava-talk  { animation: avaTalk  0.46s ease-in-out infinite; }
         .ava-wave  { animation: avaWave  0.55s ease-in-out 4; }
@@ -261,7 +125,6 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         .ava-glow  { animation: glowPulse 0.6s ease-in-out infinite; }
       `}</style>
 
-      {/* Speech bubble */}
       {bubble && (
         <div style={{ position:"absolute", top:24, right:"108%", background:"white", borderRadius:14, padding:"8px 14px", fontSize:13, fontWeight:600, color:"#1a1a1a", whiteSpace:"nowrap", boxShadow:"0 4px 16px rgba(0,0,0,0.18)", animation:"bubblePop 2.8s ease forwards", zIndex:10 }}>
           {bubble}
@@ -269,36 +132,34 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
         </div>
       )}
 
-      {/* Glow rings when talking */}
       {avaState === "talking" && [0,0.42,0.84].map(d => (
         <div key={d} style={{ position:"absolute", bottom:"18%", left:"50%", width:200, height:200, borderRadius:"50%", border:"2px solid rgba(0,210,190,0.55)", pointerEvents:"none", animation:`glowRing 1.3s ease-out ${d}s infinite` }} />
       ))}
 
-      {/* Emoji reactions */}
       {reactions.map(r => (
         <div key={r.id} style={{ position:"absolute", top:"28%", left:"50%", fontSize:32, pointerEvents:"none", animation:"reactionPop 1.1s ease-out forwards" }}>{r.emoji}</div>
       ))}
 
-      {/* Loading spinner while GLB loads */}
-      {!modelLoaded && (
-        <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:40, height:40, border:"3px solid rgba(255,255,255,0.3)", borderTopColor:"#00D4BC", borderRadius:"50%", animation:"spin 0.8s linear infinite", zIndex:5 }} />
-      )}
-
-      {/* Three.js canvas mount — CSS animations applied here */}
       <div
+        ref={imageRef}
         className={`${bodyClass} ${avaState === "talking" ? "ava-glow" : ""}`}
         onClick={handleClick}
-        style={{ cursor:"pointer", width:"100%", flex:1, position:"relative" }}
+        style={{ cursor:"pointer", transition:"transform 0.1s ease-out", width:"100%", display:"flex", alignItems:"flex-end", justifyContent:"center", flex:1 }}
       >
-        <div ref={mountRef} style={{ position:"absolute", inset:0 }} />
+        <img
+          src="/ava-avatar.png"
+          alt="Ava"
+          style={{ maxHeight:"78vh", width:"auto", objectFit:"contain", objectPosition:"bottom center", display:"block", pointerEvents:"none", filter:"drop-shadow(0 12px 28px rgba(0,0,0,0.35))" }}
+        />
       </div>
 
-      <div style={{ fontSize:11, color:"rgba(80,50,20,0.55)", letterSpacing:0.5, marginBottom:6, position:"relative", zIndex:1 }}>
+      <div style={{ fontSize:11, color:"rgba(80,50,20,0.55)", letterSpacing:0.5, marginBottom:6 }}>
         {avaState === "talking" ? "Ava is speaking ✨" : "click ava · move your mouse"}
       </div>
     </div>
   );
 }
+
 
 /* ─── Main page ─── */
 export default function ChatPage() {

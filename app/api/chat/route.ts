@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 
 const SYSTEM_PROMPT = `You are Ava, a warm and knowledgeable Bahamian cultural guide. You speak with pride and enthusiasm about the Bahamas. Your knowledge is grounded in verified facts — never guess or invent details. If you are unsure about something, say so honestly and encourage the user to verify with official sources.
 
@@ -456,14 +456,14 @@ GUIDANCE FOR RESPONSES
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GROQ_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "ANTHROPIC_API_KEY is not set. Add it in Vercel → Settings → Environment Variables." }),
+        JSON.stringify({ error: "GROQ_API_KEY is not set. Add it in Vercel → Settings → Environment Variables." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const { messages } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
@@ -472,19 +472,21 @@ export async function POST(request: Request) {
       });
     }
 
-    const stream = await client.messages.stream({
-      model: "claude-haiku-4-5-20251001",
+    const stream = await client.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...messages,
+      ],
+      stream: true,
     });
 
     const readableStream = new ReadableStream({
       async start(controller) {
         for await (const chunk of stream) {
-          if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-            controller.enqueue(new TextEncoder().encode(chunk.delta.text));
-          }
+          const text = chunk.choices[0]?.delta?.content ?? "";
+          if (text) controller.enqueue(new TextEncoder().encode(text));
         }
         controller.close();
       },

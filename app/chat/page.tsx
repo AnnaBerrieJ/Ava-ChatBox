@@ -54,37 +54,30 @@ function BeachBackground() {
         { top:55, right:"25%", scale:0.85 },
       ].map((c, i) => (
         <div key={i} style={{ position:"absolute", top:c.top, left:(c as any).left, right:(c as any).right, transform:`scale(${c.scale})`, display:"flex", opacity:0.88 }}>
-          <div style={{ width:56, height:34, background:"white", borderRadius:"50%", boxShadow:"inset -4px -4px 8px rgba(0,0,0,0.04)" }} />
+          <div style={{ width:56, height:34, background:"white", borderRadius:"50%" }} />
           <div style={{ width:76, height:44, background:"white", borderRadius:"50%", marginLeft:-20, marginTop:-10 }} />
           <div style={{ width:48, height:30, background:"white", borderRadius:"50%", marginLeft:-16, marginTop:-2 }} />
         </div>
       ))}
       <div style={{ position:"absolute", bottom:"18%", left:0, right:0, height:"22%", background:"linear-gradient(180deg, #1A9BD4 0%, #0077B6 50%, #005F99 100%)", borderRadius:"60% 60% 0 0 / 20% 20% 0 0" }} />
       <div style={{ position:"absolute", bottom:"26%", left:0, right:0, height:10, background:"linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 30%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.35) 70%, transparent 100%)", borderRadius:10 }} />
-      <div style={{ position:"absolute", bottom:"31%", left:"10%", right:"20%", height:6, background:"rgba(255,255,255,0.2)", borderRadius:10 }} />
       <svg style={{ position:"absolute", bottom:"17%", left:0, right:0, width:"100%", height:60 }} viewBox="0 0 1440 60" preserveAspectRatio="none">
         <path d="M0,30 C180,0 360,55 540,30 C720,5 900,55 1080,30 C1260,5 1380,40 1440,30 L1440,60 L0,60 Z" fill="rgba(255,255,255,0.18)" />
-        <path d="M0,40 C200,15 400,55 600,38 C800,20 1000,52 1200,38 C1320,28 1400,45 1440,40 L1440,60 L0,60 Z" fill="rgba(255,255,255,0.12)" />
       </svg>
       <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"20%", background:"linear-gradient(180deg, #F5DEB3 0%, #DEB887 50%, #C8A56A 100%)" }} />
-      {[8,16,24,32].map(b => (
-        <div key={b} style={{ position:"absolute", bottom:`${b}%`, left:"5%", right:"5%", height:2, background:"rgba(180,140,80,0.25)", borderRadius:4 }} />
-      ))}
       <div style={{ position:"absolute", bottom:"18%", left:0, width:160, height:340 }}>
         <div style={{ position:"absolute", bottom:0, left:52, width:22, height:260, background:"linear-gradient(180deg,#6B4226,#8B5E3C)", borderRadius:"12px 8px 4px 4px", transform:"rotate(-5deg)", transformOrigin:"bottom center" }} />
-        {[[-45,0],[-20,-15],[10,-18],[38,-10],[58,5],[-65,12]].map(([rot, yt], i) => (
+        {[[-45,0],[-20,-15],[10,-18],[38,-10],[58,5],[-65,12]].map(([rot,yt],i) => (
           <div key={i} style={{ position:"absolute", bottom:230, left:54, width:110, height:22, background:"linear-gradient(90deg,#2D6A2D,#4CAF50)", borderRadius:"0 50% 50% 0", transform:`rotate(${rot}deg) translateY(${yt}px)`, transformOrigin:"left center", opacity:0.9 }} />
         ))}
       </div>
       <div style={{ position:"absolute", bottom:"18%", right:-20, width:140, height:300 }}>
         <div style={{ position:"absolute", bottom:0, right:20, width:20, height:220, background:"linear-gradient(180deg,#6B4226,#8B5E3C)", borderRadius:"8px 12px 4px 4px", transform:"rotate(8deg)", transformOrigin:"bottom center" }} />
-        {[[-30,0],[-55,8],[-80,18],[10,-12],[35,-6]].map(([rot, yt], i) => (
+        {[[-30,0],[-55,8],[-80,18],[10,-12],[35,-6]].map(([rot,yt],i) => (
           <div key={i} style={{ position:"absolute", bottom:200, right:22, width:100, height:20, background:"linear-gradient(270deg,#2D6A2D,#4CAF50)", borderRadius:"50% 0 0 50%", transform:`rotate(${rot}deg) translateY(${yt}px)`, transformOrigin:"right center", opacity:0.9 }} />
         ))}
       </div>
-      <div style={{ position:"absolute", bottom:"19%", left:"22%", width:8, height:90, background:"#C0392B", borderRadius:4 }} />
-      <div style={{ position:"absolute", bottom:"30%", left:"14%", width:130, height:50, background:"conic-gradient(#E74C3C 0deg 60deg, #F39C12 60deg 120deg, #E74C3C 120deg 180deg, #F39C12 180deg 240deg, #E74C3C 240deg 300deg, #F39C12 300deg 360deg)", borderRadius:"50% 50% 0 0", opacity:0.9 }} />
-      {[[160,140],[220,120],[190,155]].map(([x,y], i) => (
+      {[[160,140],[220,120],[190,155]].map(([x,y],i) => (
         <svg key={i} style={{ position:"absolute", left:x, top:y }} width="24" height="12" viewBox="0 0 24 12">
           <path d="M0,6 Q6,0 12,6 Q18,0 24,6" fill="none" stroke="rgba(60,60,80,0.55)" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
@@ -94,13 +87,14 @@ function BeachBackground() {
 }
 
 /* ─── Ava Avatar ─── */
-function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: () => void }) {
+function AvaAvatar({ avaState, onClickAva, isMobile }: { avaState: AvaState; onClickAva: () => void; isMobile: boolean }) {
   const imageRef   = useRef<HTMLDivElement>(null);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [bubble, setBubble]       = useState<string | null>(null);
   const reactionId = useRef(0);
 
   useEffect(() => {
+    if (isMobile) return;
     const onMove = (e: MouseEvent) => {
       if (!imageRef.current) return;
       const dx = (e.clientX / window.innerWidth  - 0.75) * 2;
@@ -109,7 +103,7 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
     };
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -134,12 +128,12 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
   return (
     <div style={{ position:"relative", width:"100%", height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-end" }}>
       <style>{`
-        @keyframes avaIdle  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-        @keyframes avaTalk  { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-10px) rotate(-1deg)} 75%{transform:translateY(-5px) rotate(1deg)} }
-        @keyframes avaWave  { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-22px) rotate(-4deg)} 75%{transform:translateY(-22px) rotate(4deg)} }
-        @keyframes avaThink { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(5px) rotate(3deg)} }
-        @keyframes avaHappy { 0%,100%{transform:translateY(0) scale(1)} 30%{transform:translateY(-28px) scale(1.04)} 60%{transform:translateY(-32px) scale(1.06)} }
-        @keyframes glowPulse { 0%,100%{filter:drop-shadow(0 0 18px rgba(0,220,200,0.7)) drop-shadow(0 8px 32px rgba(0,0,0,0.3))} 50%{filter:drop-shadow(0 0 36px rgba(0,230,210,1)) drop-shadow(0 8px 32px rgba(0,0,0,0.3))} }
+        @keyframes avaIdle  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        @keyframes avaTalk  { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-8px) rotate(-1deg)} 75%{transform:translateY(-4px) rotate(1deg)} }
+        @keyframes avaWave  { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-18px) rotate(-4deg)} 75%{transform:translateY(-18px) rotate(4deg)} }
+        @keyframes avaThink { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(4px) rotate(3deg)} }
+        @keyframes avaHappy { 0%,100%{transform:translateY(0) scale(1)} 30%{transform:translateY(-22px) scale(1.04)} 60%{transform:translateY(-26px) scale(1.06)} }
+        @keyframes glowPulse { 0%,100%{filter:drop-shadow(0 0 18px rgba(0,220,200,0.7))} 50%{filter:drop-shadow(0 0 36px rgba(0,230,210,1))} }
         @keyframes reactionPop { 0%{transform:scale(.5);opacity:1} 70%{transform:translateY(-52px) scale(1.3);opacity:1} 100%{transform:translateY(-80px);opacity:0} }
         @keyframes bubblePop { 0%{transform:scale(.8);opacity:0} 12%{transform:scale(1.04);opacity:1} 85%{opacity:1} 100%{transform:scale(.9);opacity:0} }
         @keyframes glowRing { 0%{transform:translateX(-50%) scale(1);opacity:.5} 100%{transform:translateX(-50%) scale(1.65);opacity:0} }
@@ -152,40 +146,49 @@ function AvaAvatar({ avaState, onClickAva }: { avaState: AvaState; onClickAva: (
       `}</style>
 
       {bubble && (
-        <div style={{ position:"absolute", top:24, right:"108%", background:"white", borderRadius:14, padding:"8px 14px", fontSize:13, fontWeight:600, color:"#1a1a1a", whiteSpace:"nowrap", boxShadow:"0 4px 16px rgba(0,0,0,0.18)", animation:"bubblePop 2.8s ease forwards", zIndex:10 }}>
+        <div style={{ position:"absolute", top:16, right:isMobile?"auto":"108%", left:isMobile?"10px":"auto", background:"white", borderRadius:14, padding:"6px 12px", fontSize:12, fontWeight:600, color:"#1a1a1a", whiteSpace:"nowrap", boxShadow:"0 4px 16px rgba(0,0,0,0.18)", animation:"bubblePop 2.8s ease forwards", zIndex:10 }}>
           {bubble}
-          <div style={{ position:"absolute", right:-8, top:"50%", transform:"translateY(-50%)", borderWidth:"8px 0 8px 8px", borderStyle:"solid", borderColor:"transparent transparent transparent white" }} />
         </div>
       )}
 
-      {avaState === "talking" && [0,0.42,0.84].map(d => (
+      {avaState === "talking" && !isMobile && [0,0.42,0.84].map(d => (
         <div key={d} style={{ position:"absolute", bottom:"18%", left:"50%", width:200, height:200, borderRadius:"50%", border:"2px solid rgba(0,210,190,0.55)", pointerEvents:"none", animation:`glowRing 1.3s ease-out ${d}s infinite` }} />
       ))}
 
       {reactions.map(r => (
-        <div key={r.id} style={{ position:"absolute", top:"28%", left:"50%", fontSize:32, pointerEvents:"none", animation:"reactionPop 1.1s ease-out forwards" }}>{r.emoji}</div>
+        <div key={r.id} style={{ position:"absolute", top:"20%", left:"50%", fontSize:28, pointerEvents:"none", animation:"reactionPop 1.1s ease-out forwards" }}>{r.emoji}</div>
       ))}
 
       <div
         ref={imageRef}
         className={`${bodyClass} ${avaState === "talking" ? "ava-glow" : ""}`}
         onClick={handleClick}
-        style={{ cursor:"pointer", transition:"transform 0.1s ease-out", width:"100%", display:"flex", alignItems:"flex-end", justifyContent:"center", flex:1 }}
+        style={{ cursor:"pointer", transition:"transform 0.1s ease-out", width:"100%", display:"flex", alignItems:"flex-end", justifyContent:"center", flex:1, overflow:"hidden" }}
       >
         <img
           src="/ava-avatar.png"
           alt="Ava"
-          style={{ maxHeight:"78vh", width:"auto", objectFit:"contain", objectPosition:"bottom center", display:"block", pointerEvents:"none", filter:"drop-shadow(0 12px 28px rgba(0,0,0,0.35))" }}
+          style={{
+            width: isMobile ? "100%" : "auto",
+            height: isMobile ? "100%" : "auto",
+            maxHeight: isMobile ? "100%" : "78vh",
+            objectFit: isMobile ? "cover" : "contain",
+            objectPosition: isMobile ? "top center" : "bottom center",
+            display:"block",
+            pointerEvents:"none",
+            filter:"drop-shadow(0 8px 20px rgba(0,0,0,0.3))"
+          }}
         />
       </div>
 
-      <div style={{ fontSize:11, color:"rgba(80,50,20,0.55)", letterSpacing:0.5, marginBottom:6 }}>
-        {avaState === "talking" ? "Ava is speaking ✨" : "click ava · move your mouse"}
-      </div>
+      {!isMobile && (
+        <div style={{ fontSize:11, color:"rgba(80,50,20,0.55)", letterSpacing:0.5, marginBottom:6 }}>
+          {avaState === "talking" ? "Ava is speaking ✨" : "click ava · move your mouse"}
+        </div>
+      )}
     </div>
   );
 }
-
 
 /* ─── Main page ─── */
 export default function ChatPage() {
@@ -193,9 +196,21 @@ export default function ChatPage() {
   const [input, setInput]         = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [avaState, setAvaState]   = useState<AvaState>("idle");
+  const [isMobile, setIsMobile]   = useState(false);
+  const [isTablet, setIsTablet]   = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const check = () => {
+      setIsMobile(window.innerWidth < 640);
+      setIsTablet(window.innerWidth >= 640 && window.innerWidth < 1024);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
 
@@ -242,7 +257,7 @@ export default function ChatPage() {
         setMessages(prev => { const c=[...prev]; c[c.length-1]={role:"assistant",content:full}; return c; });
       }
     } catch {
-      setMessages(prev => { const c=[...prev]; c[c.length-1]={role:"assistant",content:"API error — check that ANTHROPIC_API_KEY is set in Vercel → Settings → Environment Variables."}; return c; });
+      setMessages(prev => { const c=[...prev]; c[c.length-1]={role:"assistant",content:"API error — check that GROQ_API_KEY is set in Vercel → Settings → Environment Variables."}; return c; });
     } finally {
       setIsLoading(false);
       setAvaState("happy");
@@ -251,25 +266,53 @@ export default function ChatPage() {
     }
   }
 
+  const avatarWidth = isMobile ? "100%" : isTablet ? "clamp(180px,32%,280px)" : "clamp(240px,34%,420px)";
+  const avatarHeight = isMobile ? "38vh" : "100%";
+
   return (
-    <div style={{ height:"100vh", display:"flex", fontFamily:"'Segoe UI',system-ui,sans-serif", position:"relative", overflow:"hidden" }}>
+    <div style={{ height:"100dvh", display:"flex", flexDirection: isMobile ? "column" : "row", fontFamily:"'Segoe UI',system-ui,sans-serif", position:"relative", overflow:"hidden" }}>
       <BeachBackground />
 
-      {/* LEFT — chat panel */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", position:"relative", zIndex:1, minWidth:0, padding:"20px 0 0 20px" }}>
-        <div style={{ background:"rgba(255,255,255,0.22)", backdropFilter:"blur(14px)", borderRadius:20, padding:"16px 22px", marginBottom:12, marginRight:20, border:"1px solid rgba(255,255,255,0.4)", boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
-          <h1 style={{ margin:0, fontSize:26, fontWeight:900, letterSpacing:2, color:"#1a4a2e", textShadow:"0 1px 4px rgba(255,255,255,0.6)" }}>Ava</h1>
-          <p style={{ margin:"2px 0 0", fontSize:13, color:"#2d5a3d", opacity:0.9 }}>Your Bahamian Culture Guide 🌺</p>
+      {/* AVA — top on mobile, right on desktop */}
+      <div style={{
+        width: isMobile ? "100%" : avatarWidth,
+        height: avatarHeight,
+        flexShrink: 0,
+        order: isMobile ? 1 : 2,
+        position:"relative", zIndex:2,
+        display:"flex", alignItems:"stretch", justifyContent:"center"
+      }}>
+        <AvaAvatar avaState={avaState} onClickAva={handleClickAva} isMobile={isMobile} />
+      </div>
+
+      {/* CHAT PANEL — below Ava on mobile, left on desktop */}
+      <div style={{
+        flex: 1,
+        display:"flex",
+        flexDirection:"column",
+        position:"relative",
+        zIndex: 1,
+        minWidth: 0,
+        minHeight: 0,
+        order: isMobile ? 2 : 1,
+        padding: isMobile ? "8px 10px 0" : isTablet ? "14px 0 0 14px" : "20px 0 0 20px",
+      }}>
+
+        {/* Header */}
+        <div style={{ background:"rgba(255,255,255,0.22)", backdropFilter:"blur(14px)", borderRadius:16, padding: isMobile ? "10px 14px" : "16px 22px", marginBottom:8, marginRight: isMobile ? 0 : 16, border:"1px solid rgba(255,255,255,0.4)", boxShadow:"0 4px 24px rgba(0,0,0,0.08)", flexShrink:0 }}>
+          <h1 style={{ margin:0, fontSize: isMobile ? 20 : 26, fontWeight:900, letterSpacing:2, color:"#1a4a2e", textShadow:"0 1px 4px rgba(255,255,255,0.6)", whiteSpace:"nowrap" }}>Ava</h1>
+          <p style={{ margin:"2px 0 0", fontSize: isMobile ? 11 : 13, color:"#2d5a3d", opacity:0.9, whiteSpace:"nowrap" }}>Your Bahamian Culture Guide 🌺</p>
         </div>
 
-        <div style={{ flex:1, overflowY:"auto", background:"rgba(255,255,255,0.18)", backdropFilter:"blur(14px)", borderRadius:20, padding:"14px 18px", marginRight:20, marginBottom:12, border:"1px solid rgba(255,255,255,0.38)", boxShadow:"0 4px 24px rgba(0,0,0,0.06)", display:"flex", flexDirection:"column", gap:11 }}>
+        {/* Messages */}
+        <div style={{ flex:1, overflowY:"auto", background:"rgba(255,255,255,0.18)", backdropFilter:"blur(14px)", borderRadius:16, padding: isMobile ? "10px 12px" : "14px 18px", marginRight: isMobile ? 0 : 16, marginBottom:8, border:"1px solid rgba(255,255,255,0.38)", boxShadow:"0 4px 24px rgba(0,0,0,0.06)", display:"flex", flexDirection:"column", gap:8, minHeight:0 }}>
           {messages.length === 0 ? (
-            <div style={{ paddingTop:6 }}>
-              <p style={{ fontSize:14, marginBottom:14, color:"#1a3a26", fontWeight:500 }}>Ask Ava anything about the Bahamas!</p>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+            <div style={{ paddingTop:4 }}>
+              <p style={{ fontSize: isMobile ? 13 : 14, marginBottom:10, color:"#1a3a26", fontWeight:500 }}>Ask Ava anything about the Bahamas!</p>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                 {SUGGESTED.map(q => (
                   <button key={q} onClick={() => sendMessage(q)}
-                    style={{ background:"rgba(255,255,255,0.55)", border:"1px solid rgba(255,255,255,0.7)", color:"#1a4a2e", borderRadius:24, padding:"8px 16px", fontSize:13, cursor:"pointer", fontWeight:500, backdropFilter:"blur(4px)", boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}
+                    style={{ background:"rgba(255,255,255,0.55)", border:"1px solid rgba(255,255,255,0.7)", color:"#1a4a2e", borderRadius:20, padding: isMobile ? "6px 12px" : "8px 16px", fontSize: isMobile ? 12 : 13, cursor:"pointer", fontWeight:500, backdropFilter:"blur(4px)", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", textAlign:"left" }}
                     onMouseEnter={e => (e.currentTarget.style.background="rgba(255,255,255,0.8)")}
                     onMouseLeave={e => (e.currentTarget.style.background="rgba(255,255,255,0.55)")}
                   >{q}</button>
@@ -277,13 +320,13 @@ export default function ChatPage() {
               </div>
             </div>
           ) : messages.map((msg, i) => (
-            <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start", alignItems:"flex-end", gap:8 }}>
+            <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start", alignItems:"flex-end", gap:6 }}>
               {msg.role === "assistant" && (
-                <div style={{ width:30, height:30, borderRadius:"50%", flexShrink:0, overflow:"hidden", border:"2px solid rgba(255,255,255,0.8)", boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}>
+                <div style={{ width:26, height:26, borderRadius:"50%", flexShrink:0, overflow:"hidden", border:"2px solid rgba(255,255,255,0.8)", boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}>
                   <img src="/ava-avatar.png" alt="Ava" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top" }} />
                 </div>
               )}
-              <div style={{ maxWidth:"74%", padding:"11px 16px", borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", background:msg.role==="user"?"linear-gradient(135deg,#00897B,#005F99)":"rgba(255,255,255,0.88)", color:msg.role==="user"?"white":"#1a2a1e", fontSize:14, lineHeight:1.65, boxShadow:"0 3px 12px rgba(0,0,0,0.12)", backdropFilter:msg.role==="assistant"?"blur(8px)":"none", border:msg.role==="assistant"?"1px solid rgba(255,255,255,0.6)":"none" }}>
+              <div style={{ maxWidth:"80%", padding: isMobile ? "9px 13px" : "11px 16px", borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px", background:msg.role==="user"?"linear-gradient(135deg,#00897B,#005F99)":"rgba(255,255,255,0.88)", color:msg.role==="user"?"white":"#1a2a1e", fontSize: isMobile ? 13 : 14, lineHeight:1.65, boxShadow:"0 3px 12px rgba(0,0,0,0.12)", backdropFilter:msg.role==="assistant"?"blur(8px)":"none", border:msg.role==="assistant"?"1px solid rgba(255,255,255,0.6)":"none" }}>
                 {msg.role === "assistant"
                   ? (msg.content ? renderMarkdown(msg.content) : (isLoading && i === messages.length-1 ? <span style={{ opacity:0.5 }}>▌</span> : null))
                   : (msg.content || null)}
@@ -293,20 +336,16 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
+        {/* Input */}
         <form onSubmit={e => { e.preventDefault(); sendMessage(input); }}
-          style={{ display:"flex", gap:10, padding:"12px 14px", background:"rgba(255,255,255,0.28)", backdropFilter:"blur(14px)", borderRadius:20, marginRight:20, marginBottom:20, border:"1px solid rgba(255,255,255,0.5)", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}>
+          style={{ display:"flex", gap:8, padding: isMobile ? "8px 10px" : "12px 14px", background:"rgba(255,255,255,0.28)", backdropFilter:"blur(14px)", borderRadius:16, marginRight: isMobile ? 0 : 16, marginBottom: isMobile ? 10 : 16, border:"1px solid rgba(255,255,255,0.5)", boxShadow:"0 4px 20px rgba(0,0,0,0.08)", flexShrink:0 }}>
           <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="Ask about the Bahamas…" disabled={isLoading}
-            style={{ flex:1, padding:"11px 18px", borderRadius:28, border:"1px solid rgba(255,255,255,0.7)", background:"rgba(255,255,255,0.7)", fontSize:14, outline:"none", color:"#1a3a26", backdropFilter:"blur(4px)" }} />
+            style={{ flex:1, padding: isMobile ? "9px 14px" : "11px 18px", borderRadius:24, border:"1px solid rgba(255,255,255,0.7)", background:"rgba(255,255,255,0.7)", fontSize: isMobile ? 13 : 14, outline:"none", color:"#1a3a26", backdropFilter:"blur(4px)" }} />
           <button type="submit" disabled={!input.trim() || isLoading}
-            style={{ padding:"11px 24px", borderRadius:28, border:"none", background:input.trim()&&!isLoading?"linear-gradient(135deg,#FFD700,#FF8C00)":"rgba(200,200,200,0.5)", color:input.trim()&&!isLoading?"#1a1a1a":"rgba(80,80,80,0.5)", fontWeight:700, fontSize:14, cursor:input.trim()&&!isLoading?"pointer":"default", whiteSpace:"nowrap", boxShadow:input.trim()&&!isLoading?"0 2px 10px rgba(255,160,0,0.4)":"none" }}>
+            style={{ padding: isMobile ? "9px 16px" : "11px 24px", borderRadius:24, border:"none", background:input.trim()&&!isLoading?"linear-gradient(135deg,#FFD700,#FF8C00)":"rgba(200,200,200,0.5)", color:input.trim()&&!isLoading?"#1a1a1a":"rgba(80,80,80,0.5)", fontWeight:700, fontSize: isMobile ? 13 : 14, cursor:input.trim()&&!isLoading?"pointer":"default", whiteSpace:"nowrap" }}>
             Send ➤
           </button>
         </form>
-      </div>
-
-      {/* RIGHT — Ava 3D */}
-      <div style={{ width:"clamp(240px,34%,420px)", display:"flex", alignItems:"stretch", justifyContent:"center", position:"relative", zIndex:2, flexShrink:0 }}>
-        <AvaAvatar avaState={avaState} onClickAva={handleClickAva} />
       </div>
     </div>
   );

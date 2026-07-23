@@ -9,14 +9,9 @@ type Reaction = { emoji: string; id: number };
 const SUGGESTED = [
   "What is Junkanoo? 🎉",
   "Best Bahamian food? 🍽️",
-  "Famous Bahamians? 🌟",
-  "The Out Islands? 🏝️",
-  "Best conch salad? 🐚",
-  "Bahari Bahamas? 👗",
 ];
 const CLICK_REACTIONS = ["👋🏾","😄","🌺","✨","💛","🌊"];
 const IDLE_COMMENTS   = ["Hey there! 😊","Ask me anything!","Did you know… 🌴","I love the Bahamas ❤️","The ocean is calling 🌊"];
-const CHIP_COLORS     = ["#006D5B","#0077B6","#8B5E3C","#C0392B","#2980B9","#1a4a2e"];
 
 /* ─── Markdown renderer ─── */
 function renderInline(text: string): React.ReactNode[] {
@@ -150,6 +145,7 @@ export default function ChatPage() {
   const [avaState,setAvaState]   = useState<AvaState>("idle");
   const [screenW,setScreenW]     = useState(1200);
   const [reactions,setReactions] = useState<Reaction[]>([]);
+  const [showSuggested,setShowSuggested] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -177,6 +173,7 @@ export default function ChatPage() {
 
   async function sendMessage(text:string){
     if(!text.trim()||isLoading)return;
+    setShowSuggested(false);
     const userMsg:Message={role:"user",content:text};
     const updated=[...messages,userMsg];
     setMessages(updated);setInput("");setIsLoading(true);setAvaState("thinking");
@@ -195,121 +192,154 @@ export default function ChatPage() {
     }finally{setIsLoading(false);setAvaState("happy");setTimeout(()=>setAvaState("idle"),1800);inputRef.current?.focus();}
   }
 
-  /* ════════════════ MOBILE ════════════════ */
-  if(isMobile) return (
-    <div style={{height:"100dvh",display:"flex",flexDirection:"column",fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"hidden",background:"#eaf6f4"}}>
-      <style>{`
-        @keyframes tdot{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
-        @keyframes mPop{0%{transform:scale(.5);opacity:1}70%{transform:translateY(-44px)scale(1.3);opacity:1}100%{transform:translateY(-70px);opacity:0}}
-        @keyframes mIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-        @keyframes mTalk{0%,100%{transform:translateY(0)rotate(0)}25%{transform:translateY(-6px)rotate(-1deg)}75%{transform:translateY(-3px)rotate(1deg)}}
-        @keyframes mWave{0%,100%{transform:translateY(0)rotate(0)}25%{transform:translateY(-16px)rotate(-4deg)}75%{transform:translateY(-16px)rotate(4deg)}}
-        @keyframes mHappy{0%,100%{transform:translateY(0)scale(1)}40%{transform:translateY(-18px)scale(1.05)}}
-        .m-idle{animation:mIdle 3.6s ease-in-out infinite}
-        .m-talk{animation:mTalk .46s ease-in-out infinite}
-        .m-wave{animation:mWave .55s ease-in-out 4}
-        .m-think{animation:mIdle 1.2s ease-in-out infinite}
-        .m-happy{animation:mHappy .5s ease-in-out 4}
-        .no-scroll::-webkit-scrollbar{display:none}
-      `}</style>
+  /* ════════════════ MOBILE — WhatsApp-style fullscreen ════════════════ */
+  if(isMobile) {
+    const mCls = {idle:"m-idle",talking:"m-talk",waving:"m-wave",thinking:"m-think",happy:"m-happy"}[avaState] ?? "m-idle";
+    return (
+      <div style={{height:"100dvh",display:"flex",flexDirection:"column",fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"hidden",position:"relative"}}>
+        <style>{`
+          @keyframes tdot{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+          @keyframes mPop{0%{transform:scale(.5);opacity:1}70%{transform:translateY(-50px)scale(1.3);opacity:1}100%{transform:translateY(-80px);opacity:0}}
+          @keyframes mIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+          @keyframes mTalk{0%,100%{transform:translateY(0)rotate(0)}25%{transform:translateY(-6px)rotate(-1deg)}75%{transform:translateY(-3px)rotate(1deg)}}
+          @keyframes mWave{0%,100%{transform:translateY(0)rotate(0)}25%{transform:translateY(-16px)rotate(-4deg)}75%{transform:translateY(-16px)rotate(4deg)}}
+          @keyframes mHappy{0%,100%{transform:translateY(0)scale(1)}40%{transform:translateY(-20px)scale(1.05)}}
+          .m-idle{animation:mIdle 3.6s ease-in-out infinite}
+          .m-talk{animation:mTalk .46s ease-in-out infinite}
+          .m-wave{animation:mWave .55s ease-in-out 4}
+          .m-think{animation:mIdle 1.2s ease-in-out infinite}
+          .m-happy{animation:mHappy .5s ease-in-out 4}
+          .no-sb::-webkit-scrollbar{display:none}
+        `}</style>
 
-      {/* ── HEADER: beach + full-body Ava ── */}
-      <div style={{position:"relative",width:"100%",height:"48vh",flexShrink:0,overflow:"hidden"}}
-        onClick={handleClickAva}>
-        <BeachBackground/>
-
-        {/* Ava image — full body, head at top */}
-        <div className={`m-idle m-${avaState==="talking"?"talk":avaState==="waving"?"wave":avaState==="happy"?"happy":avaState==="thinking"?"think":"idle"}`}
-          style={{position:"absolute",right:0,bottom:0,height:"100%",display:"flex",alignItems:"flex-end"}}>
-          <img src="/ava-avatar.png" alt="Ava"
-            style={{height:"100%",width:"auto",objectFit:"contain",objectPosition:"bottom",display:"block",pointerEvents:"none",
-              filter:"drop-shadow(-4px 0 14px rgba(0,0,0,.22))"}}/>
+        {/* ── BACKGROUND: beach scene + full-body Ava ── */}
+        <div style={{position:"absolute",inset:0,zIndex:0}}>
+          <BeachBackground/>
+          {/* Ava standing right side, full height */}
+          <div className={mCls} style={{position:"absolute",right:0,bottom:0,height:"85%",zIndex:1,pointerEvents:"none"}}>
+            <img src="/ava-avatar.png" alt="Ava"
+              style={{height:"100%",width:"auto",objectFit:"contain",objectPosition:"bottom right",display:"block",
+                filter:"drop-shadow(-6px 0 18px rgba(0,0,0,.3))"}}/>
+          </div>
+          {/* Dark overlay — heavier at bottom for readability, lighter at top so beach shows */}
+          <div style={{position:"absolute",inset:0,zIndex:2,
+            background:"linear-gradient(180deg,rgba(0,20,10,.08) 0%,rgba(0,20,10,.18) 50%,rgba(0,20,10,.55) 100%)"}}/>
         </div>
 
         {/* Emoji reactions */}
         {reactions.map(r=>(
-          <div key={r.id} style={{position:"absolute",top:"15%",left:"35%",fontSize:30,pointerEvents:"none",animation:"mPop 1.1s ease-out forwards",zIndex:5}}>{r.emoji}</div>
+          <div key={r.id} style={{position:"absolute",top:"20%",left:"30%",fontSize:32,zIndex:20,pointerEvents:"none",animation:"mPop 1.1s ease-out forwards"}}>{r.emoji}</div>
         ))}
 
-        {/* Bottom gradient + name */}
-        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,35,20,.62) 0%,rgba(0,35,20,.18) 45%,transparent 75%)",pointerEvents:"none"}}/>
-        <div style={{position:"absolute",bottom:16,left:16}}>
-          <div style={{fontSize:28,fontWeight:900,color:"white",letterSpacing:1,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>Ava</div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,.92)",marginTop:3,textShadow:"0 1px 5px rgba(0,0,0,.4)"}}>Your Bahamian Culture Guide 🌺</div>
+        {/* ── TOP HEADER ── */}
+        <div style={{position:"relative",zIndex:10,flexShrink:0,
+          background:"linear-gradient(180deg,rgba(0,60,40,.85),rgba(0,60,40,.55))",
+          backdropFilter:"blur(12px)",
+          borderBottom:"1px solid rgba(255,255,255,.12)",
+          padding:"52px 16px 12px",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",border:"2.5px solid rgba(255,255,255,.8)",flexShrink:0,cursor:"pointer"}}
+            onClick={handleClickAva}>
+            <img src="/ava-avatar.png" alt="Ava" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"top"}}/>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:18,fontWeight:800,color:"white",lineHeight:1,letterSpacing:.5}}>Ava</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.8)",marginTop:2}}>
+              {isLoading?"💭 thinking…":avaState==="talking"?"✨ speaking…":"🌺 Your Bahamian Guide"}
+            </div>
+          </div>
+          <div style={{fontSize:20}}>🌊</div>
         </div>
 
-        {/* Status pill */}
-        <div style={{position:"absolute",top:14,right:14,background:"rgba(0,0,0,.35)",backdropFilter:"blur(10px)",borderRadius:20,padding:"5px 12px",fontSize:11,color:"white",fontWeight:600,letterSpacing:.3}}>
-          {avaState==="talking"?"✨ speaking":avaState==="thinking"?"💭 thinking":"👆 tap me"}
-        </div>
-      </div>
+        {/* ── MESSAGES ── */}
+        <div className="no-sb" style={{flex:1,overflowY:"auto",position:"relative",zIndex:10,
+          padding:"12px 14px 8px",display:"flex",flexDirection:"column",gap:10,minHeight:0,
+          WebkitOverflowScrolling:"touch" as any}}>
 
-      {/* ── Wave separator ── */}
-      <div style={{position:"relative",flexShrink:0,height:24,background:"#eaf6f4",marginTop:-1}}>
-        <svg viewBox="0 0 390 24" preserveAspectRatio="none" style={{position:"absolute",top:0,left:0,width:"100%",height:"100%"}}>
-          <path d="M0,0 C70,24 150,4 230,18 C290,28 350,6 390,0 L390,24 L0,24 Z" fill="#eaf6f4"/>
-        </svg>
-      </div>
-
-      {/* ── CHAT ── */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0,background:"#eaf6f4"}}>
-
-        {/* Messages scroll area */}
-        <div style={{flex:1,overflowY:"auto",padding:"6px 14px 8px",display:"flex",flexDirection:"column",gap:10}}>
-          {messages.length===0 ? (
-            <div style={{paddingTop:4}}>
-              <p style={{fontSize:13,color:"#1a4a2e",fontWeight:700,marginBottom:10}}>Ask Ava anything about the Bahamas! 🌊</p>
-              <div className="no-scroll" style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,WebkitOverflowScrolling:"touch" as any}}>
-                {SUGGESTED.map((q,idx)=>(
+          {/* Welcome + suggestion chips (disappear after first message) */}
+          {showSuggested && (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,paddingTop:8,paddingBottom:4}}>
+              <div style={{background:"rgba(0,0,0,.32)",backdropFilter:"blur(10px)",borderRadius:14,
+                padding:"10px 20px",textAlign:"center",color:"white",fontSize:13,fontWeight:500}}>
+                Hey! I'm Ava 🌺 Ask me anything about the Bahamas
+              </div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+                {SUGGESTED.map((q)=>(
                   <button key={q} onClick={()=>sendMessage(q)}
-                    style={{flexShrink:0,background:"white",border:`2px solid ${CHIP_COLORS[idx%CHIP_COLORS.length]}`,color:CHIP_COLORS[idx%CHIP_COLORS.length],borderRadius:22,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap",boxShadow:"0 2px 8px rgba(0,0,0,.08)"}}>
+                    style={{background:"rgba(255,255,255,.92)",border:"none",color:"#006D5B",
+                      borderRadius:22,padding:"10px 20px",fontSize:13,cursor:"pointer",fontWeight:700,
+                      boxShadow:"0 2px 12px rgba(0,0,0,.2)"}}>
                     {q}
                   </button>
                 ))}
               </div>
             </div>
-          ) : messages.map((msg,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:msg.role==="user"?"flex-end":"flex-start",alignItems:"flex-end",gap:7}}>
+          )}
+
+          {messages.map((msg,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:msg.role==="user"?"flex-end":"flex-start",
+              alignItems:"flex-end",gap:8}}>
+              {/* Ava avatar dot on assistant messages */}
               {msg.role==="assistant"&&(
-                <div style={{width:30,height:30,borderRadius:"50%",flexShrink:0,overflow:"hidden",border:"2.5px solid #00897B",boxShadow:"0 2px 6px rgba(0,137,123,.25)"}}>
+                <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,overflow:"hidden",
+                  border:"2px solid rgba(255,255,255,.85)",boxShadow:"0 2px 8px rgba(0,0,0,.2)"}}>
                   <img src="/ava-avatar.png" alt="Ava" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"top"}}/>
                 </div>
               )}
-              <div style={{maxWidth:"78%",padding:"10px 14px",borderRadius:msg.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",
-                background:msg.role==="user"?"linear-gradient(135deg,#00897B,#005F99)":"white",
-                color:msg.role==="user"?"white":"#1a1a1a",fontSize:14,lineHeight:1.6,
-                boxShadow:"0 2px 8px rgba(0,0,0,.09)",border:msg.role==="assistant"?"1px solid rgba(0,137,123,.14)":"none"}}>
+              <div style={{
+                maxWidth:"72%",
+                padding:"10px 14px",
+                borderRadius: msg.role==="user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                background: msg.role==="user"
+                  ? "linear-gradient(135deg,#00897B,#005F99)"
+                  : "rgba(255,255,255,.93)",
+                color: msg.role==="user" ? "white" : "#1a2a1e",
+                fontSize:15,lineHeight:1.6,
+                boxShadow:"0 2px 12px rgba(0,0,0,.18)",
+                border: msg.role==="assistant" ? "1px solid rgba(255,255,255,.6)" : "none",
+              }}>
                 {msg.role==="assistant"
-                  ?(msg.content?renderMarkdown(msg.content):isLoading&&i===messages.length-1
-                    ?<span style={{display:"flex",gap:5,padding:"3px 0"}}>
-                      {[0,.18,.36].map(d=><span key={d} style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:"#00897B",animation:`tdot 1.2s ease-in-out ${d}s infinite`}}/>)}
-                    </span>:null)
-                  :msg.content}
+                  ? (msg.content
+                      ? renderMarkdown(msg.content)
+                      : isLoading && i===messages.length-1
+                        ? <span style={{display:"flex",gap:5,padding:"2px 0"}}>
+                            {[0,.18,.36].map(d=><span key={d} style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#00897B",animation:`tdot 1.2s ease-in-out ${d}s infinite`}}/>)}
+                          </span>
+                        : null)
+                  : msg.content}
               </div>
             </div>
           ))}
           <div ref={bottomRef}/>
         </div>
 
-        {/* Input bar */}
-        <div style={{flexShrink:0,background:"white",borderTop:"1px solid rgba(0,137,123,.14)",padding:"10px 12px 14px",boxShadow:"0 -2px 12px rgba(0,0,0,.06)"}}>
-          <form onSubmit={e=>{e.preventDefault();sendMessage(input);}} style={{display:"flex",gap:8,alignItems:"center"}}>
+        {/* ── INPUT BAR ── */}
+        <div style={{position:"relative",zIndex:10,flexShrink:0,
+          background:"rgba(0,40,25,.78)",backdropFilter:"blur(16px)",
+          borderTop:"1px solid rgba(255,255,255,.12)",padding:"10px 12px 24px"}}>
+          <form onSubmit={e=>{e.preventDefault();sendMessage(input);}} style={{display:"flex",gap:10,alignItems:"center"}}>
             <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
-              placeholder="Ask about the Bahamas…" disabled={isLoading}
-              style={{flex:1,padding:"12px 18px",borderRadius:28,border:"1.5px solid #b2dfdb",background:"#eaf6f4",fontSize:14,outline:"none",color:"#1a3a26"}}/>
+              placeholder="Message Ava…" disabled={isLoading}
+              style={{flex:1,padding:"13px 18px",borderRadius:28,
+                border:"1.5px solid rgba(255,255,255,.22)",
+                background:"rgba(255,255,255,.14)",
+                color:"white",fontSize:15,outline:"none",
+                caretColor:"#FFD700"}}/>
             <button type="submit" disabled={!input.trim()||isLoading}
-              style={{padding:"12px 18px",borderRadius:28,border:"none",
-                background:input.trim()&&!isLoading?"linear-gradient(135deg,#FFD700,#FF8C00)":"#e0e0e0",
-                color:input.trim()&&!isLoading?"#1a1a1a":"#aaa",
-                fontWeight:700,fontSize:14,cursor:input.trim()&&!isLoading?"pointer":"default",whiteSpace:"nowrap",
-                boxShadow:input.trim()&&!isLoading?"0 3px 10px rgba(255,160,0,.3)":"none"}}>
-              Send ➤
+              style={{width:48,height:48,borderRadius:"50%",border:"none",flexShrink:0,
+                background: input.trim()&&!isLoading
+                  ? "linear-gradient(135deg,#FFD700,#FF8C00)"
+                  : "rgba(255,255,255,.18)",
+                color: input.trim()&&!isLoading ? "#1a1a1a" : "rgba(255,255,255,.4)",
+                fontSize:20,cursor:input.trim()&&!isLoading?"pointer":"default",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                boxShadow:input.trim()&&!isLoading?"0 3px 12px rgba(255,160,0,.4)":"none"}}>
+              ➤
             </button>
           </form>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   /* ════════════════ TABLET / DESKTOP ════════════════ */
   const avaW = isTablet ? "clamp(200px,35%,300px)" : "clamp(260px,34%,420px)";
@@ -327,7 +357,7 @@ export default function ChatPage() {
             <div style={{paddingTop:4}}>
               <p style={{fontSize:14,marginBottom:10,color:"#1a3a26",fontWeight:500}}>Ask Ava anything about the Bahamas!</p>
               <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-                {SUGGESTED.map(q=>(
+                {[...SUGGESTED,"Famous Bahamians? 🌟","The Out Islands? 🏝️","Best conch salad? 🐚","Bahari Bahamas? 👗"].map(q=>(
                   <button key={q} onClick={()=>sendMessage(q)}
                     style={{background:"rgba(255,255,255,.6)",border:"1px solid rgba(255,255,255,.7)",color:"#1a4a2e",borderRadius:20,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500,backdropFilter:"blur(4px)"}}
                     onMouseEnter={e=>(e.currentTarget.style.background="rgba(255,255,255,.85)")}
